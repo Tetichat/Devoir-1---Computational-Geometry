@@ -48,12 +48,11 @@ class Vertex:
 
 class Halfedge:
 
-    def __init__(self, next=None, opposite=None, prev=None, vertex=None, facet=None):
+    def __init__(self, next=None, opposite=None, prev=None, vertex=None):
         self.opposite = opposite
         self.next = next
         self.prev = prev
         self.vertex = vertex
-        self.facet = facet
 
 class Face:
 
