@@ -305,12 +305,13 @@ int Cdelaunay(char* input_file, char* output_file) {
             else{
                 if (num_halfedges >= max_halfedges) {
                     max_halfedges += 1000;
-                    printf("%d\n", max_halfedges);
                     halfedges = (HalfEdge*)realloc(halfedges, max_halfedges * sizeof(HalfEdge));
-                    printf("%d\n", max_halfedges);
                 }
                 he1 = &halfedges[num_halfedges++];
                 he2 = &halfedges[num_halfedges++];
+
+                // Realloc manipulation may have invalidated pointers, so we need to re-fetch the edge pointer
+                edge = &halfedges[he];
 
                 // Set vertices
                 he2->vertex = i;
