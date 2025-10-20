@@ -11,10 +11,6 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
     MyMesh* mesh = createMesh(input_file);
     // Delaunay triangulation algorithm
 
-    // Initialize predicates.h
-    exactinit();
-
-
     // Step 1: Create initial triangle
     double L = 1;
     createInitialTriangles(mesh, L);

@@ -26,6 +26,21 @@ enum {
 };
 Font fonts[FONT_COUNT];
 
+void draw_vertex(DrawCtx *ctx, Vertex v) {
+    double x = (v.x - ctx->min_x) / (ctx->max_x - ctx->min_x) * (ctx->window_width*0.9) + ctx->window_width*0.05;
+    double y = (v.y - ctx->min_y) / (ctx->max_y - ctx->min_y) * ctx->window_height*0.9 + ctx->window_height*0.05;
+    // Draw the vertex at (x, y)
+    DrawCircle((int)x, (int)y, 5, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PURPLE));
+}
+void draw_edge(DrawCtx *ctx, Vertex v1, Vertex v2) {
+    double x1 = (v1.x - ctx->min_x) / (ctx->max_x - ctx->min_x) * (ctx->window_width*0.9) + ctx->window_width*0.05;
+    double y1 = (v1.y - ctx->min_y) / (ctx->max_y - ctx->min_y) * ctx->window_height*0.9 + ctx->window_height*0.05;
+    double x2 = (v2.x - ctx->min_x) / (ctx->max_x - ctx->min_x) * (ctx->window_width*0.9) + ctx->window_width*0.05;
+    double y2 = (v2.y - ctx->min_y) / (ctx->max_y - ctx->min_y) * ctx->window_height*0.9 + ctx->window_height*0.05;
+    // Draw the edge from (x1, y1) to (x2, y2)
+    DrawLine((int)x1, (int)y1, (int)x2, (int)y2, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PALE_PURPLE));
+}
+
 int main(int argc, char* argv[]) {
     if (argc != 3) {
         printf("Usage: %s <input_file> <output_file>\n", argv[0]);
@@ -36,7 +51,15 @@ int main(int argc, char* argv[]) {
     MyMesh mesh;
     int result = Cdelaunay(argv[1], argv[2], &mesh);
 
-    printf("Delaunay triangulation result: %d\n", mesh.num_faces);
+    // Find max and min coordinates for normalization
+    double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
+    double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
+    for (int i = 0; i < mesh.num_vertices; i++) {
+        if (mesh.vertices[i].x < min_x) min_x = mesh.vertices[i].x;
+        if (mesh.vertices[i].x > max_x) max_x = mesh.vertices[i].x;
+        if (mesh.vertices[i].y < min_y) min_y = mesh.vertices[i].y;
+        if (mesh.vertices[i].y > max_y) max_y = mesh.vertices[i].y;
+    }
 
     if (result == 0) {
         printf("Delaunay triangulation completed successfully.\n");
@@ -45,7 +68,8 @@ int main(int argc, char* argv[]) {
     }
 
     DrawCtx ctx = {
-        .window_width = 800, .window_height = 600
+        .window_width = 800, .window_height = 600,
+        .min_x = min_x, .min_y = min_y, .max_x = max_x, .max_y = max_y
     };
 
     const uint32_t minMemoryRequired = Clay_MinMemorySize();
@@ -99,6 +123,26 @@ int main(int argc, char* argv[]) {
         ClearBackground(CLAY_COLOR_TO_RAYLIB_COLOR(APP_DARK));
         Clay_Raylib_Render(renderCommands, fonts);
 
+        // Draw edges
+        for (int i = 0; i < mesh.num_faces; i++) {
+            HalfEdge* he = &mesh.halfedges[mesh.faces[i].halfedge];
+            for (int j = 0; j < 3; j++) {
+                Vertex v1 = mesh.vertices[he->vertex];
+                Vertex v2 = mesh.vertices[mesh.halfedges[he->next].vertex];
+                if (v1.x > v2.x || v1.y > v2.y) {
+                    draw_edge(&ctx, v1, v2);
+                }
+                if (he->twin == -1) {
+                    draw_edge(&ctx, v1, v2);
+                }
+                he = &mesh.halfedges[he->next];
+            }
+        }
+        // Draw vertices
+        for (int i = 0; i < mesh.num_vertices+4; i++) {
+            draw_vertex(&ctx, mesh.vertices[i]);
+        }
+
 
         
         EndDrawing();
@@ -107,11 +151,6 @@ int main(int argc, char* argv[]) {
     Clay_Raylib_Close();
 
     return result;
-}
-
-void draw_vertex(DrawCtx *ctx, Vertex v) {
-    double x = v.x;
-    double y = v.y;
 }
 
 

@@ -3,6 +3,9 @@
 
 int createInitialTriangles(MyMesh* mesh, double L) {
 
+    // Initialize predicates.h
+    exactinit();
+
     mesh->num_halfedges = 6; // 2 triangles * 3 half-edges each
     mesh->num_faces = 2; // 2 initial triangles
 
