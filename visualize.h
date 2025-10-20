@@ -10,5 +10,6 @@ typedef struct DrawCtx {
 } DrawCtx;
 
 void draw_vertex(DrawCtx *ctx, Vertex v);
+void draw_edge(DrawCtx *ctx, Vertex v1, Vertex v2);
 
 #endif // _VISUALIZE_H_

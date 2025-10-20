@@ -51,6 +51,15 @@ int main(int argc, char* argv[]) {
     MyMesh mesh;
     int result = Cdelaunay(argv[1], argv[2], &mesh);
 
+    // Add a maximum of 100 extra vertices for user clicks
+    int max_additional_vertices = 100;
+    mesh.max_vertices += max_additional_vertices;
+    mesh.vertices = (Vertex*)realloc(mesh.vertices, mesh.max_vertices * sizeof(Vertex));
+    mesh.max_halfedges += max_additional_vertices * 3; // Each new vertex can create up to 3
+    mesh.halfedges = (HalfEdge*)realloc(mesh.halfedges, mesh.max_halfedges * sizeof(HalfEdge));
+    mesh.max_faces += max_additional_vertices; // Each new vertex can create up to 1 new
+    mesh.faces = (Face*)realloc(mesh.faces, mesh.max_faces * sizeof(Face));
+
     // Find max and min coordinates for normalization
     double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
     double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
@@ -141,6 +150,19 @@ int main(int argc, char* argv[]) {
         // Draw vertices
         for (int i = 0; i < mesh.num_vertices+4; i++) {
             draw_vertex(&ctx, mesh.vertices[i]);
+        }
+        
+        // Click event to add a new point
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            Vector2 mousePos = GetMousePosition();
+            double x = (mousePos.x - ctx.window_width*0.05) / (ctx.window_width*0.9) * (max_x - min_x) + min_x;
+            double y = (mousePos.y - ctx.window_height*0.05) / (ctx.window_height*0.9) * (max_y - min_y) + min_y;
+            
+            printf("New point added at: (%f, %f)\n", x, y);
+            // 1.Add the new vertex
+            Vertex newVertex = {x, y}; 
+            
+
         }
 
 
