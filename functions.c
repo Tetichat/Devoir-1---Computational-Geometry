@@ -1,7 +1,7 @@
 #include "functions.h"
 #include "predicates.h"
 
-int createInitialTriangles(Mesh* mesh, double L) {
+int createInitialTriangles(MyMesh* mesh, double L) {
 
     mesh->num_halfedges = 6; // 2 triangles * 3 half-edges each
     mesh->num_faces = 2; // 2 initial triangles
@@ -27,7 +27,7 @@ int createInitialTriangles(Mesh* mesh, double L) {
     mesh->halfedges[2].vertex = mesh->num_vertices + 2;
 
     mesh->halfedges[0].next = 1;
-    mesh->halfedges[1].next = 2; 
+    mesh->halfedges[1].next = 2;
     mesh->halfedges[2].next = 0;
 
     // Triangle 2: (num_points, num_points+2, num_points+3)
@@ -71,7 +71,7 @@ double isInsideCircle(Vertex d, Vertex a, Vertex b, Vertex c) {
         d.x, d.y
     };
     return incircle(&pos[0], &pos[2], &pos[4], &pos[6]);
-}   
+}
 
 
 void addToList(int** list,int*count, int* max_size, int value){
@@ -88,9 +88,9 @@ void addToList(int** list,int*count, int* max_size, int value){
     }
 }
 
-Mesh* createMesh(char* input_file) {
+MyMesh* createMesh(char* input_file) {
 
-    Mesh* mesh = (Mesh*)malloc(sizeof(Mesh));
+    MyMesh* mesh = (MyMesh*)malloc(sizeof(MyMesh));
     if (!mesh) {
         perror("Failed to allocate memory for mesh");
         return NULL;
@@ -141,8 +141,8 @@ Mesh* createMesh(char* input_file) {
 }
 
 
-void freeMesh(Mesh* mesh) {
-    
+void freeMesh(MyMesh* mesh) {
+
     free(mesh->vertices);
     free(mesh->halfedges);
     free(mesh->faces);
@@ -207,7 +207,7 @@ int compareHilbert(const void* a, const void* b) {
     return 0; // They are equal (should not reach here in practice)
 }
 
-int getBadFace(Mesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p,int* actual_face) {
+int getBadFace(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p,int* actual_face) {
 
     bool found = false;
     int max_attempts = mesh->num_faces; // Prevent infinite loops
@@ -257,7 +257,7 @@ int getBadFace(Mesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_fa
     return found ? 0 : -1; // Return 0 if found, -1 if not
 }
 
-void getNeighbours(Mesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p,int actual_face) {
+void getNeighbours(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p,int actual_face) {
 
     // Check all half-edges of the actual_face
     int he = mesh->faces[actual_face].halfedge;
@@ -296,7 +296,7 @@ void getNeighbours(Mesh* mesh, int** bad_faces, int* bad_face_count, int* max_ba
 
 }
 
-void findBoundary(Mesh* mesh, int* bad_faces, int bad_face_count, int** boundary_edges, int* boundary_edge_count, int* max_boundary_edges, int** removed_halfedges_2, int* removed_halfedge_count_2, int* max_removed_halfedges_2) {
+void findBoundary(MyMesh* mesh, int* bad_faces, int bad_face_count, int** boundary_edges, int* boundary_edge_count, int* max_boundary_edges, int** removed_halfedges_2, int* removed_halfedge_count_2, int* max_removed_halfedges_2) {
 
     for (int j = 0; j < bad_face_count; j++) {
         int face_index = bad_faces[j];
@@ -332,7 +332,7 @@ void findBoundary(Mesh* mesh, int* bad_faces, int bad_face_count, int** boundary
 }
 
 
-int testDelaunay(Mesh* mesh) {
+int testDelaunay(MyMesh* mesh) {
     for (int i = 0; i < mesh->num_faces; i++) {
         int he1 = mesh->faces[i].halfedge;
         int he2 = mesh->halfedges[he1].next;

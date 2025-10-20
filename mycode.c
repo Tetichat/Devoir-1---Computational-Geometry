@@ -8,7 +8,7 @@
 int Cdelaunay(char* input_file, char* output_file) {
 
     // Points array read from input file
-    Mesh* mesh = createMesh(input_file);
+    MyMesh* mesh = createMesh(input_file);
     // Delaunay triangulation algorithm
 
     // Step 1: Create initial triangle
