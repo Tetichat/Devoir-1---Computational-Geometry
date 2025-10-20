@@ -5,11 +5,15 @@
 #include "functions.h"
 
 // A simple function that performs Delaunay triangulation
-int Cdelaunay(char* input_file, char* output_file) {
+int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
 
     // Points array read from input file
     MyMesh* mesh = createMesh(input_file);
     // Delaunay triangulation algorithm
+
+    // Initialize predicates.h
+    exactinit();
+
 
     // Step 1: Create initial triangle
     double L = 1;
@@ -257,7 +261,6 @@ int Cdelaunay(char* input_file, char* output_file) {
     testDelaunay(mesh);
     printf("Tested triangulation with %d faces\n", mesh->num_faces);
 #endif
-
     // Output the triangulation to the output file
     FILE* outfile = fopen(output_file, "w");
     if (!outfile) {
@@ -269,8 +272,11 @@ int Cdelaunay(char* input_file, char* output_file) {
 
 
     // Free allocated memory
-
+#if PYTHON_BINDING
     freeMesh(mesh);
+#else
+    *(MyMesh*)myMesh = *mesh;
+#endif
 
     free(bad_faces);
     free(boundary_edges);

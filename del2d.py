@@ -112,12 +112,13 @@ if __name__ == '__main__':
     # Tell ctypes the function signature
     lib.Cdelaunay.argtypes = [
         input := ctypes.c_char_p,
-        output := ctypes.c_char_p
+        output := ctypes.c_char_p,
+        mesh := ctypes.c_void_p
     ]
     lib.Cdelaunay.restype = ctypes.c_int
 
     # Call the C function
-    result = lib.Cdelaunay(args.input.encode('utf-8'),args.output.encode('utf-8'))
+    result = lib.Cdelaunay(args.input.encode('utf-8'),args.output.encode('utf-8'), ctypes.c_void_p())
 
     time_end = time.time()
     time = time_end - time_start

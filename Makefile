@@ -4,11 +4,11 @@ LIB = -L. -Lraylib/lib -lraylib -lm
 
 # Build shared library
 libmycode.so: mycode.c functions.c functions.h
-	gcc -O3 -shared -o libmycode.so -fPIC mycode.c functions.c
+	gcc -D PYTHON_BINDING -O3 -shared -o libmycode.so -fPIC mycode.c functions.c
 
 visualize: visualize.c mycode.c functions.c functions.h
-	gcc $(INC) -D DEBUG -shared -o libmycode.so -fPIC mycode.c functions.c $(LIB)
-	gcc $(INC) -D DEBUG -o visualize visualize.c $(LIB) -lmycode
+	gcc -O3 -shared -o libmycode.so -fPIC mycode.c functions.c
+	gcc $(INC) -o visualize visualize.c $(LIB) -lmycode
 	LD_LIBRARY_PATH=.:raylib/lib ./visualize pts.dat triangles.dat
 
 # Run valgrind on the test executable

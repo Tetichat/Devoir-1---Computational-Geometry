@@ -62,7 +62,7 @@ void findBoundary(MyMesh* mesh, int* bad_faces, int bad_face_count, int** bounda
 
 int testDelaunay(MyMesh* mesh);
 
-int Cdelaunay(char* input_file, char* output_file);
+int Cdelaunay(char* input_file, char* output_file, void *myMesh);
 
 
 #endif // __FUNCTIONS_H__

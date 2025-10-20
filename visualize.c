@@ -33,7 +33,10 @@ int main(int argc, char* argv[]) {
     }
 
     // Call your Delaunay triangulation function
-    int result = Cdelaunay(argv[1], argv[2]);
+    MyMesh mesh;
+    int result = Cdelaunay(argv[1], argv[2], &mesh);
+
+    printf("Delaunay triangulation result: %d\n", mesh.num_faces);
 
     if (result == 0) {
         printf("Delaunay triangulation completed successfully.\n");
@@ -95,6 +98,8 @@ int main(int argc, char* argv[]) {
         
         ClearBackground(CLAY_COLOR_TO_RAYLIB_COLOR(APP_DARK));
         Clay_Raylib_Render(renderCommands, fonts);
+
+
         
         EndDrawing();
     }
@@ -108,3 +113,5 @@ void draw_vertex(DrawCtx *ctx, Vertex v) {
     double x = v.x;
     double y = v.y;
 }
+
+
