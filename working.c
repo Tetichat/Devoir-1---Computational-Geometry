@@ -18,15 +18,19 @@ int Cdelaunay(char* input_file, char* output_file) {
 
     // Step 2: Insert points into the triangulation
 
-    // Bad faces storage -> faces which at each step contain the point in their circumcircle
+    // Bad faces storage
     int max_bad_faces = 20;
     int* bad_faces = (int*)malloc(max_bad_faces * sizeof(int));
     int bad_face_count = 0;
-    // Boundary edges storage -> edges forming the boundary of the polygonal hole
+    // Boundary edges storage
     int max_boundary_edges = 20;
     int* boundary_edges = (int*)malloc(max_boundary_edges * sizeof(int));
     int boundary_edge_count = 0;
-    // Removed half-edges storage -> half-edges that are removed during the triangulation 
+    // Removed faces storage
+    int max_removed_faces = 20;
+    int* removed_faces = (int*)malloc(max_removed_faces * sizeof(int));
+    int removed_face_count = 0;
+    // Removed half-edges storage
     int max_removed_halfedges_1 = 20;
     int* removed_halfedges_1 = (int*)malloc(max_removed_halfedges_1 * sizeof(int)); // Assume a maximum of 20 removed half-edges
     int removed_halfedge_count_1 = 0;
@@ -42,6 +46,7 @@ int Cdelaunay(char* input_file, char* output_file) {
     // Walking face index
     int walking_face = 0;
 
+
     // Hilbert curve sorting of points
     int depth = 12;
     HilbertPoint* hilbert_indices = (HilbertPoint*)malloc(mesh->num_vertices * sizeof(HilbertPoint));
@@ -53,7 +58,6 @@ int Cdelaunay(char* input_file, char* output_file) {
     }
     // Sort points based on Hilbert curve bits
     qsort(hilbert_indices, mesh->num_vertices, sizeof(HilbertPoint), compareHilbert);
-
     for (int i = 0; i < mesh->num_vertices; i++) {
         free(hilbert_indices[i].bits);
     }
@@ -67,7 +71,7 @@ int Cdelaunay(char* input_file, char* output_file) {
         removed_halfedge_count_2 = 0;
         new_halfedge_count = 0;
 
-        // 1. Find all triangles whose circumcircle contains the point p
+        // 1. Find all triangles whose circumcircle contains the point p - TODO  USING walking algorithm and sorted points
         bad_face_count = 0;
         // Start from the last walking face and get one bad face
         if(getBadFace(mesh, &bad_faces, &bad_face_count, &max_bad_faces, p, &walking_face) != 0) {
@@ -109,7 +113,6 @@ int Cdelaunay(char* input_file, char* output_file) {
             }
             he = edge->next;
         }
-    }
 
         // 4. Re-triangulate the polygonal hole with new faces connecting to point p -> TODO
         // Another way to do this by walking around p and making twins as we go
@@ -253,8 +256,9 @@ int Cdelaunay(char* input_file, char* output_file) {
 
     // Removal of infinite points - TODO
 
-    //testDelaunay(mesh);
-    //printf("Tested triangulation with %d faces\n", mesh->num_faces);
+
+    // Test Delaunay Triangulation
+    // testDelaunay(mesh);
 
     // Output the triangulation to the output file
     FILE* outfile = fopen(output_file, "w");
@@ -265,6 +269,8 @@ int Cdelaunay(char* input_file, char* output_file) {
     printMesh(outfile, mesh->vertices, mesh->halfedges, mesh->faces, mesh->num_faces);
     fclose(outfile);
 
+    printf("Wrote triangulation to %s\n", output_file);
+
 
     // Free allocated memory
 
@@ -272,6 +278,8 @@ int Cdelaunay(char* input_file, char* output_file) {
 
     free(bad_faces);
     free(boundary_edges);
+
+    free(removed_faces);
     free(removed_halfedges_1);
     free(removed_halfedges_2);
     free(new_halfedges);
