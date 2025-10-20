@@ -12,7 +12,7 @@ int Cdelaunay(char* input_file, char* output_file) {
     // Delaunay triangulation algorithm
 
     // Step 1: Create initial triangle
-    double L = 1; 
+    double L = 1;
     createInitialTriangles(mesh, L);
     printf("Read %d points from %s\n", mesh->num_vertices, input_file);
 
@@ -26,7 +26,7 @@ int Cdelaunay(char* input_file, char* output_file) {
     int max_boundary_edges = 20;
     int* boundary_edges = (int*)malloc(max_boundary_edges * sizeof(int));
     int boundary_edge_count = 0;
-    // Removed half-edges storage -> half-edges that are removed during the triangulation 
+    // Removed half-edges storage -> half-edges that are removed during the triangulation
     int max_removed_halfedges_1 = 20;
     int* removed_halfedges_1 = (int*)malloc(max_removed_halfedges_1 * sizeof(int)); // Assume a maximum of 20 removed half-edges
     int removed_halfedge_count_1 = 0;
@@ -160,7 +160,7 @@ int Cdelaunay(char* input_file, char* output_file) {
                 addToList(&new_halfedges, &new_halfedge_count, &max_new_halfedges, removed_halfedges_1[removed_halfedge_count_1 - 1]);
                 addToList(&new_halfedges, &new_halfedge_count, &max_new_halfedges, mesh->num_halfedges - 1);
 
-                removed_halfedge_count_1--;               
+                removed_halfedge_count_1--;
             }
             else{
                 if (mesh->num_halfedges >= mesh->max_halfedges) {
@@ -183,9 +183,9 @@ int Cdelaunay(char* input_file, char* output_file) {
 
                 addToList(&new_halfedges, &new_halfedge_count, &max_new_halfedges, mesh->num_halfedges - 2);
                 addToList(&new_halfedges, &new_halfedge_count, &max_new_halfedges, mesh->num_halfedges - 1);
-                
+
             }
-    
+
 
             // Create new face
             if (bad_face_count > 0){
@@ -253,8 +253,10 @@ int Cdelaunay(char* input_file, char* output_file) {
 
     // Removal of infinite points - TODO
 
-    //testDelaunay(mesh);
-    //printf("Tested triangulation with %d faces\n", mesh->num_faces);
+#if DEBUG
+    testDelaunay(mesh);
+    printf("Tested triangulation with %d faces\n", mesh->num_faces);
+#endif
 
     // Output the triangulation to the output file
     FILE* outfile = fopen(output_file, "w");

@@ -3,8 +3,9 @@ libmycode.so: mycode.c functions.c functions.h
 	gcc -O3 -shared -o libmycode.so -fPIC mycode.c functions.c
 
 # Build test executable
-test_delaunay: test_main.c libmycode.so
-	gcc -o test_delaunay test_main.c -L. -lmycode
+test_delaunay: test_main.c mycode.c functions.c functions.h
+	gcc -D DEBUG -shared -o libmycode.so -fPIC mycode.c functions.c
+	gcc -D DEBUG -o test_delaunay test_main.c -L. -lmycode
 
 # Default target
 run: libmycode.so
