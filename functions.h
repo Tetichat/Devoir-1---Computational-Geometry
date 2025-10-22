@@ -33,6 +33,8 @@ typedef struct MyMesh {
     int max_vertices;
     int max_halfedges;
     int max_faces;
+
+    double L;
 } MyMesh;
 
 typedef struct HilbertPoint {
@@ -41,7 +43,7 @@ typedef struct HilbertPoint {
 } HilbertPoint;
 
 
-int createInitialTriangles(MyMesh* mesh, double L);
+int createInitialTriangles(MyMesh* mesh);
 int printMesh(FILE* out, Vertex* points, HalfEdge* halfedges, Face* faces, int num_faces);
 
 double isInsideCircle(Vertex d, Vertex a, Vertex b, Vertex c); // TEMPORAIRE -> meca2170-robustPredicates.c

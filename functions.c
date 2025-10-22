@@ -1,7 +1,7 @@
 #include "functions.h"
 #include "predicates.h"
 
-int createInitialTriangles(MyMesh* mesh, double L) {
+int createInitialTriangles(MyMesh* mesh) {
 
     // Initialize predicates.h
     exactinit();
@@ -18,7 +18,9 @@ int createInitialTriangles(MyMesh* mesh, double L) {
         if (mesh->vertices[i].y < min_y) min_y = mesh->vertices[i].y;
         if (mesh->vertices[i].y > max_y) max_y = mesh->vertices[i].y;
     }
+
     // Create the 4 extremity points
+    double L = mesh->L;
     mesh->vertices[mesh->num_vertices].x = min_x - L; mesh->vertices[mesh->num_vertices].y = min_y - L; // Bottom-left
     mesh->vertices[mesh->num_vertices + 1].x = max_x + L; mesh->vertices[mesh->num_vertices + 1].y = min_y - L; // Bottom-right
     mesh->vertices[mesh->num_vertices + 2].x = max_x + L; mesh->vertices[mesh->num_vertices + 2].y = max_y + L; // Top-right

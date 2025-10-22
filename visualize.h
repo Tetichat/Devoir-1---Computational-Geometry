@@ -7,6 +7,8 @@
 typedef struct DrawCtx {
     int window_width, window_height;
     double min_x, min_y, max_x, max_y;
+    int panning_x, panning_y;
+    MyMesh *mesh;
 } DrawCtx;
 
 void draw_vertex(DrawCtx *ctx, Vertex v);

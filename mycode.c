@@ -12,8 +12,8 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
     // Delaunay triangulation algorithm
 
     // Step 1: Create initial triangle
-    double L = 1;
-    createInitialTriangles(mesh, L);
+    mesh->L = 1.;
+    createInitialTriangles(mesh);
     printf("Read %d points from %s\n", mesh->num_vertices, input_file);
 
     // Step 2: Insert points into the triangulation
@@ -265,7 +265,6 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
     }
     printMesh(outfile, mesh->vertices, mesh->halfedges, mesh->faces, mesh->num_faces);
     fclose(outfile);
-
 
     // Free allocated memory
 #if PYTHON_BINDING
