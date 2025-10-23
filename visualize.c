@@ -40,15 +40,46 @@ static inline void geoToViewport(DrawCtx *ctx, double x, double y, double *vpx, 
     ;
 
     int
-        window_width = ctx->window_width,
+        window_width  = ctx->window_width,
         window_height = ctx->window_height
     ;
 
-    double lx = (x-min_x) / (max_x-min_x);
-    *vpx = (lx)   * (window_width) + (ctx->panning_x);
+    // --- Zooming ---
+    double h_x = max_x - min_x, h_y = max_y - min_y;
+    h_x /= ctx->zoom;
+    h_y /= ctx->zoom;
+    
+    double
+    c_x = (min_x + max_x) / 2.,
+    c_y = (min_y + max_y) / 2.
+    ;
+    
+    min_x = c_x - h_x / 2.;
+    max_x = c_x + h_x / 2.;
+    min_y = c_y - h_y / 2.;
+    max_y = c_y + h_y / 2.;
+    // 
 
-    double ly = (y-min_y) / (max_y-min_y);
-    *vpy = (1-ly) * (window_height) + (ctx->panning_y);
+    // Scaling factor between the viewport and the physical space
+    double units_per_pixel_x = h_x / window_width;
+    double units_per_pixel_y = h_y / window_height;
+
+    // --- Panning ---
+    double 
+        geo_panning_x = ctx->panning_x * units_per_pixel_x,
+        geo_panning_y = ctx->panning_y * units_per_pixel_y
+    ;
+    min_x -= geo_panning_x;
+    max_x -= geo_panning_x;
+    min_y += geo_panning_y;
+    max_y += geo_panning_y;
+    //
+
+    double lx = (x-min_x) / h_x;
+    *vpx = (lx)   * (window_width);
+    
+    double ly = (y-min_y) / h_y;
+    *vpy = (1-ly) * (window_height);
 }
 
 static inline void viewportToGeo(DrawCtx *ctx, double vpx, double vpy, double *x, double *y) {
@@ -63,14 +94,43 @@ static inline void viewportToGeo(DrawCtx *ctx, double vpx, double vpy, double *x
 
     int
         window_width = ctx->window_width,
-        window_height = ctx->window_height
+        window_height = ctx->window_height 
     ;
 
-    double lx = (vpx) / (window_width);
-    *x = (lx)   * (max_x-min_x) + min_x;
+    // --- Zooming ---
+    double h_x = max_x - min_x, h_y = max_y - min_y;
+    h_x /= ctx->zoom;
+    h_y /= ctx->zoom;
     
-    double ly = (vpy) / (window_height);
-    *y = (1-ly) * (max_y-min_y) + min_y;
+    double
+    c_x = (min_x + max_x) / 2.,
+    c_y = (min_y + max_y) / 2.
+    ;
+    
+    min_x = c_x - h_x / 2.;
+    max_x = c_x + h_x / 2.;
+    min_y = c_y - h_y / 2.;
+    max_y = c_y + h_y / 2.;
+    // 
+
+    // Scaling factor between the viewport and the physical space
+    double units_per_pixel_x = h_x / window_width;
+    double units_per_pixel_y = h_y / window_height;
+
+    // --- Panning ---
+    double 
+        geo_panning_x = ctx->panning_x * units_per_pixel_x,
+        geo_panning_y = ctx->panning_y * units_per_pixel_y
+    ;
+    // We don't use max_x nor min_y anymore but this way it's complete
+    min_x -= geo_panning_x;
+    max_x -= geo_panning_x;
+    min_y += geo_panning_y;
+    max_y += geo_panning_y;
+    //
+
+    *x = min_x + units_per_pixel_x * vpx;
+    *y = max_y - units_per_pixel_y * vpy;
 }
 
 void draw_vertex(DrawCtx *ctx, Vertex v) {
@@ -132,6 +192,7 @@ int main(int argc, char* argv[]) {
         .window_width = 800, .window_height = 600,
         .min_x = min_x, .min_y = min_y, .max_x = max_x, .max_y = max_y,
         .mesh = &mesh,
+        .zoom = 1.
     };
 
     const uint32_t minMemoryRequired = Clay_MinMemorySize();
@@ -233,6 +294,7 @@ int main(int argc, char* argv[]) {
             viewportToGeo(&ctx, x, y, &x, &y);
             
             Vertex newVertex = {x, y}; 
+            printf("%f, %f\n", x, y);
             // TODO: Add it to the vertices
         
         // Press the middle mouse button to pan around
@@ -244,12 +306,17 @@ int main(int argc, char* argv[]) {
             ctx.panning_y += dy;
         }
         
-        // TODO: Add zoom
+        float zoom;
+        if ((zoom = GetMouseWheelMove()) != 0.) {
+            ctx.zoom += zoom / 10.;
+            ctx.zoom = Clamp(ctx.zoom, 0.5, 2.0);
+        }
 
-        // Recenter (set panning to zero) with 'C'
+        // Recenter (set panning to zero and zoom to 1) with 'C'
         if (IsKeyPressed(KEY_C)) {
             ctx.panning_x = 0;
             ctx.panning_y = 0;
+            ctx.zoom = 1.;
         }
         
         Clay_Raylib_Render(renderCommands, fonts);
