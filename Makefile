@@ -1,19 +1,24 @@
 INC = -Iclay -Iraylib/include
-LIB = -L. -Lraylib/lib -lraylib -lm
+LIB = -L. -Lraylib/lib -Ltarget -lraylib -lm
+TARGET = target/
+SRC = src/
 
 
 # Build shared library
-libmycode.so: mycode.c functions.c functions.h
-	gcc -D PYTHON_BINDING -O3 -shared -o libmycode.so -fPIC mycode.c functions.c
+lib: $(SRC)mycode.c $(SRC)functions.c $(SRC)functions.h
+	mkdir -p $(TARGET)
+	gcc -D PYTHON_BINDING -O3 -shared -o $(TARGET)libmycode.so -fPIC $(SRC)mycode.c $(SRC)functions.c
 
-visualize: visualize.c mycode.c functions.c functions.h
-	gcc -O3 -shared -o libmycode.so -fPIC mycode.c functions.c
-	gcc $(INC) -o visualize visualize.c $(LIB) -lmycode
-	LD_LIBRARY_PATH=.:raylib/lib ./visualize pts.dat triangles.dat
+visualize: $(SRC)visualize.c $(SRC)mycode.c $(SRC)functions.c $(SRC)functions.h
+	mkdir -p $(TARGET)
+	gcc -O3 -shared -o $(TARGET)libmycode.so -fPIC $(SRC)mycode.c $(SRC)functions.c
+	gcc $(INC) -o $(TARGET)visualize $(SRC)visualize.c $(LIB) -lmycode
+	LD_LIBRARY_PATH=target:raylib/lib ./$(TARGET)visualize pts.dat triangles.dat
 
 # Run valgrind on the test executable
 # valgrind: test_delaunay
 # 	LD_LIBRARY_PATH=.:raylib/lib valgrind --leak-check=yes ./test_delaunay pts.dat triangles.dat
 
 clean:
-	rm -f libmycode.so visualize
+	rm -f $(TARGET)libmycode.so $(TARGET)visualize
+	rmdir $(TARGET) 2>/dev/null || true
