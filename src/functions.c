@@ -57,13 +57,14 @@ int createInitialTriangles(MyMesh* mesh) {
 }
 
 
-int printMesh(FILE* out, Vertex* points, HalfEdge* halfedges, Face* faces, int num_faces) {
+int printMesh(FILE* out, MyMesh *mesh) {
+    int num_faces = mesh->num_faces;
     fprintf(out, "%d\n", num_faces);
     for (int i = 0; i < num_faces; i++) {
-        int he1 = faces[i].halfedge;
-        int he2 = halfedges[he1].next;
-        int he3 = halfedges[he2].next;
-        fprintf(out, "%d %d %d \n", halfedges[he1].vertex, halfedges[he2].vertex, halfedges[he3].vertex);
+        int he1 = mesh->faces[i].halfedge;
+        int he2 = mesh->halfedges[he1].next;
+        int he3 = mesh->halfedges[he2].next;
+        fprintf(out, "%d %d %d \n", mesh->halfedges[he1].vertex, mesh->halfedges[he2].vertex, mesh->halfedges[he3].vertex);
     }
     return 0;
 }
@@ -78,19 +79,30 @@ double isInsideCircle(Vertex d, Vertex a, Vertex b, Vertex c) {
     return incircle(&pos[0], &pos[2], &pos[4], &pos[6]);
 }
 
+void initList(List *l) {
+    int max = 20;
+    int count = 0;
+    int *data = (int*)malloc(max * sizeof(int));
+    
+    *l = (List){
+        .data = data,
+        .count = count,
+        .max = max
+    };
+}
 
-void addToList(int** list,int*count, int* max_size, int value){
-    if (*count < *max_size) {
-        (*list)[*count] = value;
-        (*count)++;
-    }
-    else {
+void addToList(List* l, int value) {
+    if (l->count >= l->max) {
         // Reallocate with increased size
-        *max_size += 20;
-        *list = (int*)realloc(*list, *max_size * sizeof(int));
-        (*list)[*count] = value;
-        (*count)++;
+        l->max *= 2;
+        l->data = (int*)realloc(l->data, l->max * sizeof(int));
     }
+
+    l->data[l->count++] = value;
+}
+
+void freeList(List l) {
+    free(l.data);
 }
 
 MyMesh* createMesh(char* input_file) {
@@ -212,7 +224,7 @@ int compareHilbert(const void* a, const void* b) {
     return 0; // They are equal (should not reach here in practice)
 }
 
-int getBadFace(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p,int* actual_face) {
+int getBadFace(MyMesh* mesh, List* bad_faces, Vertex p, int *actual_face) {
 
     bool found = false;
     int max_attempts = mesh->num_faces; // Prevent infinite loops
@@ -226,7 +238,7 @@ int getBadFace(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_
         double det = isInsideCircle(p, mesh->vertices[a->vertex], mesh->vertices[b->vertex], mesh->vertices[c->vertex]);
         if (det > 0) {
             found = true;
-            addToList(bad_faces, bad_face_count, max_bad_faces, *actual_face);
+            addToList(bad_faces, *actual_face);
         }
         else{
             // Move to closest adjacent face to point p
@@ -262,7 +274,7 @@ int getBadFace(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_
     return found ? 0 : -1; // Return 0 if found, -1 if not
 }
 
-void getNeighbours(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p,int actual_face) {
+void getNeighbours(MyMesh* mesh, List* bad_faces, Vertex p, int actual_face) {
 
     // Check all half-edges of the actual_face
     int he = mesh->faces[actual_face].halfedge;
@@ -274,8 +286,8 @@ void getNeighbours(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_
         if (twin_edge != NULL) {
             // Check if this twin face is already in bad_faces
             bool is_twin_bad = false;
-            for (int m = 0; m < *bad_face_count; m++) {
-                if (twin_face_index == (*bad_faces)[m]) {
+            for (int m = 0; m < bad_faces->count; m++) {
+                if (twin_face_index == bad_faces->data[m]) {
                     is_twin_bad = true;
                     break;
                 }
@@ -290,9 +302,9 @@ void getNeighbours(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_
                                            mesh->vertices[mesh->halfedges[he2].vertex],
                                            mesh->vertices[mesh->halfedges[he3].vertex]);
                 if (det > 0) {
-                    addToList(bad_faces, bad_face_count, max_bad_faces, twin_face_index);
+                    addToList(bad_faces, twin_face_index);
                     // Recursively check neighbors of this twin face
-                    getNeighbours(mesh, bad_faces, bad_face_count, max_bad_faces, p, twin_face_index);
+                    getNeighbours(mesh, bad_faces, p, twin_face_index);
                 }
             }
         }
@@ -301,10 +313,10 @@ void getNeighbours(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_
 
 }
 
-void findBoundary(MyMesh* mesh, int* bad_faces, int bad_face_count, int** boundary_edges, int* boundary_edge_count, int* max_boundary_edges, int** removed_halfedges_2, int* removed_halfedge_count_2, int* max_removed_halfedges_2) {
+void findBoundary(MyMesh* mesh, List* bad_faces, List* boundary_edges, List* removed_halfedges) {
 
-    for (int j = 0; j < bad_face_count; j++) {
-        int face_index = bad_faces[j];
+    for (int j = 0; j < bad_faces->count; j++) {
+        int face_index = bad_faces->data[j];
         int he = mesh->faces[face_index].halfedge;
         for (int k = 0; k < 3; k++) {
             HalfEdge* edge = &mesh->halfedges[he];
@@ -313,22 +325,22 @@ void findBoundary(MyMesh* mesh, int* bad_faces, int bad_face_count, int** bounda
 
             // If the twin face is not in bad_faces, this edge is a boundary edge
             if (twin_edge == NULL){
-                addToList(boundary_edges, boundary_edge_count, max_boundary_edges, he);
+                addToList(boundary_edges, he);
             }
             else{
                 bool is_twin_bad = false;
-                for (int m = 0; m < bad_face_count; m++) {
-                    if (twin_face_index == bad_faces[m]) {
+                for (int m = 0; m < bad_faces->count; m++) {
+                    if (twin_face_index == bad_faces->data[m]) {
                         is_twin_bad = true;
                         break;
                     }
                 }
                 if (!is_twin_bad) {
-                    addToList(boundary_edges, boundary_edge_count, max_boundary_edges, he);
+                    addToList(boundary_edges, he);
                 }
                 else{
                     // Mark twin half-edge for removal
-                    addToList(removed_halfedges_2, removed_halfedge_count_2, max_removed_halfedges_2, edge->twin);
+                    addToList(removed_halfedges, edge->twin);
                 }
             }
             he = edge->next;

@@ -106,19 +106,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Load the shared library
-    lib = ctypes.CDLL(os.path.abspath("libmycode.so")) # "mycode.dll" on Windows
+    lib = ctypes.CDLL(os.path.abspath("target/libmycode.so")) # "mycode.dll" on Windows
 
     # Call the C function
     # Tell ctypes the function signature
     lib.Cdelaunay.argtypes = [
         input := ctypes.c_char_p,
         output := ctypes.c_char_p,
-        mesh := ctypes.c_void_p
+        mesh := ctypes.c_void_p  # Not used by the binding but necessary for
+                                 # the visualization
     ]
     lib.Cdelaunay.restype = ctypes.c_int
 
     # Call the C function
-    result = lib.Cdelaunay(args.input.encode('utf-8'),args.output.encode('utf-8'), ctypes.c_void_p())
+    result = lib.Cdelaunay(args.input.encode('utf-8'), args.output.encode('utf-8'), ctypes.c_void_p())
 
     time_end = time.time()
     time = time_end - time_start
