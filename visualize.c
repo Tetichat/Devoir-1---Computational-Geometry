@@ -23,6 +23,8 @@ const Clay_Sizing sizing_expand = {
     .height = CLAY_SIZING_GROW(),
 };
 
+#define Min(x, y) CLAY__MIN(x, y)
+
 enum {
     FONT_BODY_INDEX,
     FONT_COUNT,
@@ -153,6 +155,57 @@ void draw_edge(DrawCtx *ctx, Vertex v1, Vertex v2) {
     DrawLine((int)x1, (int)y1, (int)x2, (int)y2, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PALE_PURPLE));
 }
 
+void render_shortcuts_grid(int headerAlpha) {
+    static Clay_String shortcuts[] = {
+        CLAY_STRING_CONST("Esc - Quit"),
+        CLAY_STRING_CONST("C - Recenter"),
+        CLAY_STRING_CONST("H - Toggle header"),
+        CLAY_STRING_CONST("V - Toggle Voronoi"),
+        // New shortcuts go here...
+    };
+
+    const uint32_t sc_count = sizeof(shortcuts) / sizeof(*shortcuts);
+    if (sc_count == 0) return;
+
+    const uint32_t max_sc_per_col = 3;
+    const uint32_t col_count = 1 + sc_count / max_sc_per_col;
+
+    for (uint32_t col_id = 0; col_id < col_count; col_id++) {
+        CLAY({
+            .id = CLAY_IDI("ShortcutColumn", col_id),
+            .layout = {
+                .sizing = {
+                    .width = CLAY_SIZING_FIT(),
+                    .height = CLAY_SIZING_FIT(),
+                },
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                .childGap = 1,
+            },
+            .backgroundColor = ClayColorAlpha(APP_VVDARK, headerAlpha),
+        }) {
+
+            for (
+                uint32_t sc_id = max_sc_per_col*col_id; 
+                sc_id < Min(sc_count, max_sc_per_col*(col_id+1)); 
+                sc_id++
+            ) {
+                Clay_String sc = shortcuts[sc_id];
+                CLAY_TEXT(sc, CLAY_TEXT_CONFIG({
+                    .fontId = FONT_BODY_INDEX,
+                    .fontSize = 20,
+                    .textColor = APP_PALE_PURPLE,
+                    .textAlignment = CLAY_TEXT_ALIGN_CENTER,
+                }));
+            }     
+        }
+
+    }
+}
+
+
+uint8_t headerToggle = 1;
+uint8_t voronoiToggle = 0;
+
 int main(int argc, char* argv[]) {
     if (argc != 3) {
         printf("Usage: %s <input_file> <output_file>\n", argv[0]);
@@ -212,6 +265,8 @@ int main(int argc, char* argv[]) {
         SetTextureFilter(fonts[i].texture, TEXTURE_FILTER_BILINEAR);
     }
 
+    int *adj_faces = malloc(sizeof(int) * 3 * mesh.num_faces);
+    Vertex *adj_verts = malloc(sizeof(Vertex) * mesh.num_faces);
     while (!WindowShouldClose()) {
         Clay_SetPointerState(
             RAY_VECTOR2_TO_CLAY_VECTOR2(GetMousePosition()),
@@ -238,28 +293,41 @@ int main(int argc, char* argv[]) {
             .backgroundColor = APP_TRANSPARENT,
         }) {
 
+            int headerAlpha = headerToggle ? 220 : 0;
+
             CLAY({
                 ID("Header"),
                 .layout = {
                     .sizing = {
                         .width = CLAY_SIZING_GROW(),
-                        .height = CLAY_SIZING_PERCENT(0.1),
+                        .height = CLAY_SIZING_FIT(),
                     },
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
                     .padding = CLAY_PADDING_ALL(10),
                     .childGap = 5,
                 },
-                .backgroundColor = ClayColorAlpha(APP_VDARK, 220),
+                .backgroundColor = ClayColorAlpha(APP_VDARK, headerAlpha),
             }) {
 
                 // TODO: Add buttons to load .dat files, export, clear...
 
-                Clay_String str = CLAY_STRING("Test");
-                CLAY_TEXT(str, CLAY_TEXT_CONFIG({
-                    .fontId = FONT_BODY_INDEX,
-                    .fontSize = 24,
-                    .textColor = APP_PALE_PURPLE,
-                }));
+                CLAY({
+                    ID("Shortcuts"),
+                    .layout = {
+                        .sizing = {
+                            .width = CLAY_SIZING_FIT(),
+                            .height = CLAY_SIZING_GROW(),
+                        },
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        .padding = CLAY_PADDING_ALL(5),
+                        .childGap = 3,
+                    },
+                    .backgroundColor = ClayColorAlpha(APP_VDARK, headerAlpha),
+                    .cornerRadius = 3,
+                }) {
+
+                    if (headerToggle)
+                        render_shortcuts_grid(headerAlpha);
+                }
             }
         }
  
@@ -285,6 +353,58 @@ int main(int argc, char* argv[]) {
         // Draw vertices
         for (int i = 0; i < mesh.num_vertices+4; i++) {
             draw_vertex(&ctx, mesh.vertices[i]);
+        }
+
+        if (voronoiToggle) {
+            // Building an adjacency list,
+            // Element of adj_faces at i+0 to i+2 is the index of the face that 
+            // face i is bordering, -1 if face is on boundary.
+            // adj_verts are the circumcenters of the faces (vertices of voronoi).
+            // TODO: recompute only on new inserts.
+            memset(adj_faces, -1, sizeof(int) * 3 * mesh.num_faces);    
+            memset(adj_verts, -1, sizeof(Vertex) * mesh.num_faces);
+            for (int face_id = 0; face_id < mesh.num_faces; face_id++) {
+                HalfEdge he = mesh.halfedges[mesh.faces[face_id].halfedge];
+                double x[3], y[3];
+                
+                for (int i = 0; i < 3; i++) {
+                    if (he.twin != -1) {
+                        HalfEdge twin = mesh.halfedges[he.twin];
+                        adj_faces[3*face_id+i] = twin.face;
+                    }
+                    
+                    he = mesh.halfedges[he.next];
+                    x[i] = mesh.vertices[he.vertex].x;
+                    y[i] = mesh.vertices[he.vertex].y;
+                }
+    
+                // Compute circumcenter
+                double 
+                    d1 = x[1]*x[1] + y[1]*y[1] - x[0]*x[0] - y[0]*y[0],
+                    d2 = x[2]*x[2] + y[2]*y[2] - x[1]*x[1] - y[1]*y[1]
+                ;
+                double denom = 2. * ((x[1]-x[0])*(y[2]-y[1]) - (y[1]-y[0])*(x[2]-x[1]));
+                double cx = ((y[2]-y[1])*d1 - (y[1]-y[0])*d2) / denom;
+                double cy = ((x[1]-x[0])*d2 - (x[2]-x[1])*d1) / denom;
+    
+                adj_verts[face_id] = (Vertex) { cx, cy };
+            }
+            
+            // Drawing the dual
+            for (int face_id = 0; face_id < mesh.num_faces; face_id++) {
+                double x = adj_verts[face_id].x, y = adj_verts[face_id].y;
+                geoToViewport(&ctx, x, y, &x, &y);
+                DrawCircle((int)x, (int)y, 5, RED);
+                
+                for (int i = 0; i < 3; i++) {
+                    int other_face = adj_faces[face_id*3+i];
+                    if (other_face == -1) continue;               
+                    
+                    double u = adj_verts[other_face].x, v = adj_verts[other_face].y;
+                    geoToViewport(&ctx, u, v, &u, &v);
+                    DrawLine((int)x, (int)y, (int)u, (int)v, RED);  
+                }
+            }
         }
         
         // Click event to add a new point
@@ -317,8 +437,15 @@ int main(int argc, char* argv[]) {
             ctx.panning_x = 0;
             ctx.panning_y = 0;
             ctx.zoom = 1.;
+        } 
+        else if (IsKeyPressed(KEY_H)) {
+            headerToggle = 1 - headerToggle; 
+        }
+        else if (IsKeyPressed(KEY_V)) {
+            voronoiToggle = 1 - voronoiToggle; 
         }
         
+        // Render the UI on top
         Clay_Raylib_Render(renderCommands, fonts);
 
         EndDrawing();
@@ -326,6 +453,8 @@ int main(int argc, char* argv[]) {
     
     Clay_Raylib_Close();
     
+    free(adj_faces);
+    free(adj_verts);
     return result;
 }
 
