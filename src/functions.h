@@ -21,6 +21,12 @@ typedef struct Face {
     int halfedge; // Index of one of the half-edges bordering the face
 } Face;
 
+typedef struct List {
+    int* data;
+    int count;
+    int max;
+} List;
+
 typedef struct MyMesh {
     Vertex* vertices;
     HalfEdge* halfedges;
@@ -44,27 +50,28 @@ typedef struct HilbertPoint {
 
 
 int createInitialTriangles(MyMesh* mesh);
-int printMesh(FILE* out, Vertex* points, HalfEdge* halfedges, Face* faces, int num_faces);
 
-double isInsideCircle(Vertex d, Vertex a, Vertex b, Vertex c); // TEMPORAIRE -> meca2170-robustPredicates.c
+double isInsideCircle(Vertex d, Vertex a, Vertex b, Vertex c);
 
-void addToList(int** list,int*count, int* max_size, int value);
+void initList(List *l);
+void addToList(List* l, int value);
+void freeList(List l);
 
 MyMesh* createMesh(char* input_file);
+int printMesh(FILE* out, MyMesh *mesh);
 void freeMesh(MyMesh* mesh);
 
 void swap(double* a, double* b);
 void HilbertSort(double x, double y, int depth, int** bits);
 int compareHilbert(const void* a, const void* b);
 
-int getBadFace(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p, int *actual_face);
-void getNeighbours(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p, int actual_face);
+int getBadFace(MyMesh* mesh, List* bad_faces, Vertex p, int *actual_face);
+void getNeighbours(MyMesh* mesh, List* bad_faces, Vertex p, int actual_face);
 
-void findBoundary(MyMesh* mesh, int* bad_faces, int bad_face_count, int** boundary_edges, int* boundary_edge_count, int* max_boundary_edges, int** removed_halfedges_2, int* removed_halfedge_count_2, int* max_removed_halfedges_2);
+void findBoundary(MyMesh* mesh, List* bad_faces, List* boundary_edges, List* removed_half_edges);
 
 int testDelaunay(MyMesh* mesh);
 
 int Cdelaunay(char* input_file, char* output_file, void *myMesh);
-
 
 #endif // __FUNCTIONS_H__
