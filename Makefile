@@ -11,8 +11,8 @@ lib: $(SRC)mycode.c $(SRC)functions.c $(SRC)functions.h
 
 visualize: $(SRC)visualize.c $(SRC)mycode.c $(SRC)functions.c $(SRC)functions.h
 	mkdir -p $(TARGET)
-	gcc -O3 -shared -o $(TARGET)libmycode.so -fPIC $(SRC)mycode.c $(SRC)functions.c
-	gcc $(INC) -o $(TARGET)visualize $(SRC)visualize.c $(LIB) -lmycode
+	gcc -D DEBUG -O3 -shared -o $(TARGET)libmycode.so -fPIC $(SRC)mycode.c $(SRC)functions.c
+	gcc $(INC) -D DEBUG -o $(TARGET)visualize $(SRC)visualize.c $(LIB) -lmycode
 	LD_LIBRARY_PATH=target:raylib/lib ./$(TARGET)visualize pts.dat triangles.dat
 
 # Run valgrind on the test executable

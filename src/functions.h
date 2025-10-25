@@ -22,7 +22,7 @@ typedef struct Face {
 } Face;
 
 typedef struct List {
-    int* data;
+    int *data;
     int count;
     int max;
 } List;
@@ -55,6 +55,8 @@ double isInsideCircle(Vertex d, Vertex a, Vertex b, Vertex c);
 
 void initList(List *l);
 void addToList(List* l, int value);
+int getList(List *l, int idx);
+void emptyList(List *l);
 void freeList(List l);
 
 MyMesh* createMesh(char* input_file);
@@ -69,6 +71,17 @@ int getBadFace(MyMesh* mesh, List* bad_faces, Vertex p, int *actual_face);
 void getNeighbours(MyMesh* mesh, List* bad_faces, Vertex p, int actual_face);
 
 void findBoundary(MyMesh* mesh, List* bad_faces, List* boundary_edges, List* removed_half_edges);
+
+void insertPoint(
+    MyMesh *mesh, 
+    HilbertPoint* hilbert_indices,
+    List *bad_faces, 
+    List *boundary_edges, 
+    List *removed_halfedges_1, 
+    List *removed_halfedges_2, 
+    List *new_halfedges, 
+    int vertex_idx
+);
 
 int testDelaunay(MyMesh* mesh);
 

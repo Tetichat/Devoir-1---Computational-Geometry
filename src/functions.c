@@ -91,7 +91,7 @@ void initList(List *l) {
     };
 }
 
-void addToList(List* l, int value) {
+void addToList(List *l, int value) {
     if (l->count >= l->max) {
         // Reallocate with increased size
         l->max *= 2;
@@ -99,6 +99,14 @@ void addToList(List* l, int value) {
     }
 
     l->data[l->count++] = value;
+}
+
+int getList(List *l, int idx) {
+    return l->data[idx];
+}
+
+void emptyList(List *l) {
+    l->count = 0;
 }
 
 void freeList(List l) {
@@ -348,6 +356,189 @@ void findBoundary(MyMesh* mesh, List* bad_faces, List* boundary_edges, List* rem
     }
 }
 
+void insertPoint(
+    MyMesh *mesh, 
+    HilbertPoint* hilbert_indices,
+    List *bad_faces, 
+    List *boundary_edges, 
+    List *removed_halfedges_1, 
+    List *removed_halfedges_2, 
+    List *new_halfedges, 
+    int vertex_idx
+) {
+    Vertex p = mesh->vertices[hilbert_indices[vertex_idx].index];
+    int walking_face = 0;
+        
+    // Reset temporary storage
+    emptyList(bad_faces);
+    emptyList(boundary_edges);
+    emptyList(removed_halfedges_2);
+    emptyList(new_halfedges);
+
+    // 1. Find all triangles whose circumcircle contains the point p
+    // Start from the last walking face and get one bad face
+    if(getBadFace(mesh, bad_faces, p, &walking_face) != 0) {
+        // Point is outside the triangulation, skip it
+        return;
+    }
+
+    // If found, get neighbors of bad faces and to bad_faces list if point is inside circumcircle
+    getNeighbours(mesh, bad_faces, p, walking_face);
+
+    // 2. Find the boundary of the polygonal hole
+    for (int j = 0; j < bad_faces->count; j++) {
+        int face_index = bad_faces->data[j];
+        int he = mesh->faces[face_index].halfedge;
+
+        for (int k = 0; k < 3; k++) {
+            HalfEdge* edge = &mesh->halfedges[he];
+            HalfEdge* twin_edge = (edge->twin != -1) ? &mesh->halfedges[edge->twin] : NULL;
+            int twin_face_index = (twin_edge) ? twin_edge->face : -1;
+
+            // If the twin face is not in bad_faces, this edge is a boundary edge
+            if (twin_edge == NULL){
+                addToList(boundary_edges, he);
+            }
+            else{
+                bool is_twin_bad = false;
+                for (int m = 0; m < bad_faces->count; m++) {
+                    if (twin_face_index == bad_faces->data[m]) {
+                        is_twin_bad = true;
+                        break;
+                    }
+                }
+                if (!is_twin_bad) {
+                    addToList(boundary_edges, he);
+                }
+                else{
+                    // Mark twin half-edge for removal
+                    addToList(removed_halfedges_2, edge->twin);
+                }
+            }
+            he = edge->next;
+        }
+    }
+
+    // 4. Re-triangulate the polygonal hole with new faces connecting to point p -> TODO
+    // Another way to do this by walking around p and making twins as we go
+    // Use removed_halfedges_1 and removed_halfedge_count_1 for this step
+
+    for (int j = 0; j < boundary_edges->count; j++) {
+        int he = boundary_edges->data[j];
+        HalfEdge* edge = &mesh->halfedges[he];
+        HalfEdge* twin_edge = (edge->twin != -1) ? &mesh->halfedges[edge->twin] : NULL;
+
+        // Create new half-edges
+        int he1_idx, he2_idx;
+        HalfEdge* he1; HalfEdge* he2;
+        int count_rm_he_1 = removed_halfedges_1->count;
+
+        if (count_rm_he_1 == 0) {
+            if (mesh->num_halfedges >= mesh->max_halfedges) {
+                mesh->max_halfedges *= 2;
+                mesh->halfedges = (HalfEdge*) realloc(mesh->halfedges, mesh->max_halfedges * sizeof(HalfEdge));
+            }
+
+            edge = &mesh->halfedges[he];
+            he1  = &mesh->halfedges[he1_idx = mesh->num_halfedges++];
+            he2  = &mesh->halfedges[he2_idx = mesh->num_halfedges++];
+        }
+        else if (count_rm_he_1 == 1) {
+            if(mesh->num_halfedges >= mesh->max_halfedges) {
+                mesh->max_halfedges *= 2;
+                mesh->halfedges = (HalfEdge*)realloc(mesh->halfedges, mesh->max_halfedges * sizeof(HalfEdge));
+            }
+            
+            he1_idx = getList(removed_halfedges_1, count_rm_he_1 - 1);
+            he1 = &mesh->halfedges[he1_idx];
+
+            he2 = &mesh->halfedges[he2_idx = mesh->num_halfedges++];
+
+            removed_halfedges_1->count -= 1;
+        }
+        else {
+            he1_idx = getList(removed_halfedges_1, count_rm_he_1 - 1);
+            he2_idx = getList(removed_halfedges_1, count_rm_he_1 - 2);
+
+            he1 = &mesh->halfedges[he1_idx];
+            he2 = &mesh->halfedges[he2_idx];
+
+            removed_halfedges_1->count -= 2;
+        }
+
+        // Set vertices
+        he2->vertex = hilbert_indices[vertex_idx].index;
+        he1->vertex = mesh->halfedges[edge->next].vertex;
+
+        edge->next = he1_idx; // he1
+        he1->next  = he2_idx; // he2
+        he2->next  = he; // Close the triangle
+
+        addToList(new_halfedges, he1_idx);
+        addToList(new_halfedges, he2_idx);
+
+        // Create new face
+        if (bad_faces->count > 0){
+            Face* reused_face = &mesh->faces[bad_faces->data[bad_faces->count - 1]];
+            reused_face->halfedge = he; // Point to one of the new half-edges
+            edge->face = bad_faces->data[bad_faces->count - 1];
+            he1->face = bad_faces->data[bad_faces->count - 1];
+            he2->face = bad_faces->data[bad_faces->count - 1];
+            bad_faces->count--;
+        }
+        else{
+            if (mesh->num_faces >= mesh->max_faces) {
+                mesh->max_faces += 1000;
+                mesh->faces = (Face*)realloc(mesh->faces, mesh->max_faces * sizeof(Face));
+            }
+            Face* new_face = &mesh->faces[mesh->num_faces++];
+            new_face->halfedge = he; // Point to one of the new half-edges
+            edge->face = mesh->num_faces - 1;
+            he1->face = mesh->num_faces - 1;
+            he2->face = mesh->num_faces - 1;
+        }
+    }
+
+    // 5. Twins
+    for (int j = 0; j < boundary_edges->count; j++) {
+        int he = boundary_edges->data[j];
+        HalfEdge* he1 = &mesh->halfedges[he];
+        HalfEdge* he2 = &mesh->halfedges[he1->next]; // New half-edge pointing to new point
+        HalfEdge* he3 = &mesh->halfedges[he2->next]; // New half-edge pointing to original vertex
+
+        for (int k = 0; k < new_halfedges->count; k++) {
+            HalfEdge* he_nc = &mesh->halfedges[new_halfedges->data[k]];
+            HalfEdge* he_nc_next = &mesh->halfedges[he_nc->next];
+
+            if(he1->vertex == he_nc_next->vertex && he2->vertex == he_nc->vertex){
+                he1->twin = new_halfedges->data[k];
+                he_nc->twin = he;
+            }
+            if(he2->vertex == he_nc_next->vertex && he3->vertex == he_nc->vertex){
+                he2->twin = new_halfedges->data[k];
+                he_nc->twin = he1->next;
+            }
+            if(he3->vertex == he_nc_next->vertex && he1->vertex == he_nc->vertex){
+                he3->twin = new_halfedges->data[k];
+                he_nc->twin = he2->next;
+            }
+
+        }
+    }
+
+    // Removed half-edges cleanup
+    int temp = removed_halfedges_1->count;
+    removed_halfedges_1->count = removed_halfedges_2->count;
+    removed_halfedges_2->count = temp;
+
+    int* temp_ptr = removed_halfedges_1->data;
+    removed_halfedges_1->data = removed_halfedges_2->data;
+    removed_halfedges_2->data = temp_ptr;
+
+    int temp_size = removed_halfedges_1->max;
+    removed_halfedges_1->max = removed_halfedges_2->max;
+    removed_halfedges_2->max = temp_size;
+}
 
 int testDelaunay(MyMesh* mesh) {
     for (int i = 0; i < mesh->num_faces; i++) {

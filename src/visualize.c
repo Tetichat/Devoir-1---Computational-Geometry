@@ -13,6 +13,8 @@
 #define APP_VVDARK      (Clay_Color){  35,  38,  52, 255 }
 #define APP_PURPLE      (Clay_Color){ 202, 158, 230, 255 }
 #define APP_PALE_PURPLE (Clay_Color){ 247, 224, 255, 255 }
+#define APP_FADED_RED   (Clay_Color){ 222,  74,  76, 255 }
+#define APP_PEACHY_PINK (Clay_Color){ 227, 125, 126, 255 }
 
 #define ClayColorAlpha(_col, _alpha) ((Clay_Color){ .r = (_col).r, .g = (_col).g, .b = (_col).b, .a = (_alpha) })
 
@@ -135,15 +137,34 @@ static inline void viewportToGeo(DrawCtx *ctx, double vpx, double vpy, double *x
     *y = max_y - units_per_pixel_y * vpy;
 }
 
-void draw_vertex(DrawCtx *ctx, Vertex v) {
+void draw_init(DrawCtx *ctx, MyMesh *mesh) {
+    // Find max and min coordinates for normalization
+    double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
+    double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
+    for (int i = 0; i < mesh->num_vertices; i++) {
+        if (mesh->vertices[i].x < min_x) min_x = mesh->vertices[i].x;
+        if (mesh->vertices[i].x > max_x) max_x = mesh->vertices[i].x;
+        if (mesh->vertices[i].y < min_y) min_y = mesh->vertices[i].y;
+        if (mesh->vertices[i].y > max_y) max_y = mesh->vertices[i].y;
+    }
+
+    *ctx = (DrawCtx){
+        .window_width = 800, .window_height = 600,
+        .min_x = min_x, .min_y = min_y, .max_x = max_x, .max_y = max_y,
+        .mesh = mesh,
+        .zoom = 1.
+    };
+}
+
+void draw_vertex(DrawCtx *ctx, Vertex v, int size, Color color) {
     double x = v.x, y = v.y;
     geoToViewport(ctx, x, y, &x, &y);
 
     // Draw the vertex at (x, y)
-    DrawCircle((int)x, (int)y, 5, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PURPLE));
+    DrawCircle((int)x, (int)y, size, color);
 }
 
-void draw_edge(DrawCtx *ctx, Vertex v1, Vertex v2) {    
+void draw_edge(DrawCtx *ctx, Vertex v1, Vertex v2, Color color) {    
     double 
     x1 = v1.x, y1 = v1.y,
     x2 = v2.x, y2 = v2.y
@@ -152,7 +173,47 @@ void draw_edge(DrawCtx *ctx, Vertex v1, Vertex v2) {
     geoToViewport(ctx, x2, y2, &x2, &y2);
     
     // Draw the edge from (x1, y1) to (x2, y2)
-    DrawLine((int)x1, (int)y1, (int)x2, (int)y2, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PALE_PURPLE));
+    DrawLine((int)x1, (int)y1, (int)x2, (int)y2, color);
+}
+
+void draw_handle_user(DrawCtx *ctx) {
+    // Click event to add a new point
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        Vector2 mousePos = GetMousePosition();
+        double x = mousePos.x, y = mousePos.y;
+        viewportToGeo(ctx, x, y, &x, &y);
+        
+        Vertex newVertex = {x, y}; 
+        _newInsert = 1;
+        //TODO: 
+        
+    // Press the middle mouse button to pan around
+    } else if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
+        Vector2 mouseDelta = GetMouseDelta();
+        double dx = mouseDelta.x, dy = mouseDelta.y;
+
+        ctx->panning_x += dx;
+        ctx->panning_y += dy;
+    }
+    
+    float zoom;
+    if ((zoom = GetMouseWheelMove()) != 0.) {
+        ctx->zoom += zoom / 10.;
+        ctx->zoom = Clamp(ctx->zoom, 0.5, 5.0);
+    }
+
+    // Recenter (set panning to zero and zoom to 1) with 'C'
+    if (IsKeyPressed(KEY_C)) {
+        ctx->panning_x = 0;
+        ctx->panning_y = 0;
+        ctx->zoom = 1.;
+    } 
+    else if (IsKeyPressed(KEY_H)) {
+        _headerToggle = 1 - _headerToggle; 
+    }
+    else if (IsKeyPressed(KEY_V)) { // TODO: Transform into checkbox with the triangulation
+        _voronoiToggle = 1 - _voronoiToggle; 
+    }
 }
 
 void render_shortcuts_grid(int headerAlpha) {
@@ -203,8 +264,9 @@ void render_shortcuts_grid(int headerAlpha) {
 }
 
 
-uint8_t headerToggle = 1;
-uint8_t voronoiToggle = 0;
+uint8_t _headerToggle = 1;
+uint8_t _voronoiToggle = 0;
+uint8_t _newInsert = 1;
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -215,6 +277,11 @@ int main(int argc, char* argv[]) {
     // Call your Delaunay triangulation function
     MyMesh mesh;
     int result = Cdelaunay(argv[1], argv[2], &mesh);
+    if (result == 0) {
+        printf("Delaunay triangulation completed successfully.\n");
+    } else {
+        printf("Error in Delaunay triangulation.\n");
+    }
 
     // Add a maximum of 100 extra vertices for user clicks
     int max_additional_vertices = 100;
@@ -225,28 +292,8 @@ int main(int argc, char* argv[]) {
     mesh.max_faces += max_additional_vertices; // Each new vertex can create up to 1 new
     mesh.faces = (Face*)realloc(mesh.faces, mesh.max_faces * sizeof(Face));
 
-    // Find max and min coordinates for normalization
-    double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
-    double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
-    for (int i = 0; i < mesh.num_vertices; i++) {
-        if (mesh.vertices[i].x < min_x) min_x = mesh.vertices[i].x;
-        if (mesh.vertices[i].x > max_x) max_x = mesh.vertices[i].x;
-        if (mesh.vertices[i].y < min_y) min_y = mesh.vertices[i].y;
-        if (mesh.vertices[i].y > max_y) max_y = mesh.vertices[i].y;
-    }
-
-    if (result == 0) {
-        printf("Delaunay triangulation completed successfully.\n");
-    } else {
-        printf("Error in Delaunay triangulation.\n");
-    }
-
-    DrawCtx ctx = {
-        .window_width = 800, .window_height = 600,
-        .min_x = min_x, .min_y = min_y, .max_x = max_x, .max_y = max_y,
-        .mesh = &mesh,
-        .zoom = 1.
-    };
+    DrawCtx ctx;
+    draw_init(&ctx, &mesh);
 
     const uint32_t minMemoryRequired = Clay_MinMemorySize();
     Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory(
@@ -293,7 +340,7 @@ int main(int argc, char* argv[]) {
             .backgroundColor = APP_TRANSPARENT,
         }) {
 
-            int headerAlpha = headerToggle ? 220 : 0;
+            int headerAlpha = _headerToggle ? 220 : 0;
 
             CLAY({
                 ID("Header"),
@@ -302,7 +349,6 @@ int main(int argc, char* argv[]) {
                         .width = CLAY_SIZING_GROW(),
                         .height = CLAY_SIZING_FIT(),
                     },
-                    .padding = CLAY_PADDING_ALL(10),
                     .childGap = 5,
                 },
                 .backgroundColor = ClayColorAlpha(APP_VDARK, headerAlpha),
@@ -319,13 +365,13 @@ int main(int argc, char* argv[]) {
                         },
                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         .padding = CLAY_PADDING_ALL(5),
-                        .childGap = 3,
+                        .childGap = 5,
                     },
                     .backgroundColor = ClayColorAlpha(APP_VDARK, headerAlpha),
                     .cornerRadius = 3,
                 }) {
 
-                    if (headerToggle)
+                    if (_headerToggle)
                         render_shortcuts_grid(headerAlpha);
                 }
             }
@@ -344,7 +390,7 @@ int main(int argc, char* argv[]) {
                 Vertex v1 = mesh.vertices[he->vertex];
                 Vertex v2 = mesh.vertices[mesh.halfedges[he->next].vertex];
                 if (v1.x < v2.x || he->twin == -1) {
-                    draw_edge(&ctx, v1, v2);
+                    draw_edge(&ctx, v1, v2, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PALE_PURPLE));
                 }
                 he = &mesh.halfedges[he->next];
             }
@@ -352,17 +398,20 @@ int main(int argc, char* argv[]) {
         
         // Draw vertices
         for (int i = 0; i < mesh.num_vertices+4; i++) {
-            draw_vertex(&ctx, mesh.vertices[i]);
+            draw_vertex(&ctx, mesh.vertices[i], 3, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PURPLE));
         }
 
-        if (voronoiToggle) {
-            // Building an adjacency list,
+        if (_newInsert) { // Mesh has changed -> Recompute adjacency
+
+            adj_faces = realloc(adj_faces, sizeof(int) * 3 * mesh.num_faces);
+            adj_verts = realloc(adj_verts, sizeof(Vertex) * mesh.num_faces);
+
             // Element of adj_faces at i+0 to i+2 is the index of the face that 
             // face i is bordering, -1 if face is on boundary.
             // adj_verts are the circumcenters of the faces (vertices of voronoi).
-            // TODO: recompute only on new inserts.
             memset(adj_faces, -1, sizeof(int) * 3 * mesh.num_faces);    
             memset(adj_verts, -1, sizeof(Vertex) * mesh.num_faces);
+
             for (int face_id = 0; face_id < mesh.num_faces; face_id++) {
                 HalfEdge he = mesh.halfedges[mesh.faces[face_id].halfedge];
                 double x[3], y[3];
@@ -387,68 +436,34 @@ int main(int argc, char* argv[]) {
                 double cx = ((y[2]-y[1])*d1 - (y[1]-y[0])*d2) / denom;
                 double cy = ((x[1]-x[0])*d2 - (x[2]-x[1])*d1) / denom;
     
-                adj_verts[face_id] = (Vertex) { cx, cy };
-            }
+                adj_verts[face_id] = (Vertex){ cx, cy };
+            }   
             
-            // Drawing the dual
+            _newInsert = 0;
+        }
+
+        // Drawing the Voronoi diagram 
+        if (_voronoiToggle) {
             for (int face_id = 0; face_id < mesh.num_faces; face_id++) {
-                double x = adj_verts[face_id].x, y = adj_verts[face_id].y;
-                geoToViewport(&ctx, x, y, &x, &y);
-                DrawCircle((int)x, (int)y, 5, RED);
+                Vertex v = adj_verts[face_id];
+                draw_vertex(&ctx, v, 3, CLAY_COLOR_TO_RAYLIB_COLOR(APP_FADED_RED));
                 
                 for (int i = 0; i < 3; i++) {
                     int other_face = adj_faces[face_id*3+i];
                     if (other_face == -1) continue;               
                     
-                    double u = adj_verts[other_face].x, v = adj_verts[other_face].y;
-                    geoToViewport(&ctx, u, v, &u, &v);
-                    DrawLine((int)x, (int)y, (int)u, (int)v, RED);  
+                    Vertex w = adj_verts[other_face];
+                    draw_edge(&ctx, v, w, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PEACHY_PINK));
                 }
             }
-        }
-        
-        // Click event to add a new point
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            Vector2 mousePos = GetMousePosition();
-            double x = mousePos.x, y = mousePos.y;
-            viewportToGeo(&ctx, x, y, &x, &y);
-            
-            Vertex newVertex = {x, y}; 
-            printf("%f, %f\n", x, y);
-            // TODO: Add it to the vertices
-        
-        // Press the middle mouse button to pan around
-        } else if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
-            Vector2 mouseDelta = GetMouseDelta();
-            double dx = mouseDelta.x, dy = mouseDelta.y;
-
-            ctx.panning_x += dx;
-            ctx.panning_y += dy;
-        }
-        
-        float zoom;
-        if ((zoom = GetMouseWheelMove()) != 0.) {
-            ctx.zoom += zoom / 10.;
-            ctx.zoom = Clamp(ctx.zoom, 0.5, 2.0);
-        }
-
-        // Recenter (set panning to zero and zoom to 1) with 'C'
-        if (IsKeyPressed(KEY_C)) {
-            ctx.panning_x = 0;
-            ctx.panning_y = 0;
-            ctx.zoom = 1.;
-        } 
-        else if (IsKeyPressed(KEY_H)) {
-            headerToggle = 1 - headerToggle; 
-        }
-        else if (IsKeyPressed(KEY_V)) {
-            voronoiToggle = 1 - voronoiToggle; 
         }
         
         // Render the UI on top
         Clay_Raylib_Render(renderCommands, fonts);
 
         EndDrawing();
+
+        draw_handle_user(&ctx);
     }
     
     Clay_Raylib_Close();
