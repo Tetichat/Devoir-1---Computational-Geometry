@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 
 typedef struct Vertex {
@@ -15,10 +16,12 @@ typedef struct HalfEdge {
     int next; // Index of the next half-edge in the face
     int twin; // Index of the twin half-edge
     int face; // Index of the face this half-edge borders
+    int mark; // For highlighting or other purposes
 } HalfEdge;
 
 typedef struct Face {
     int halfedge; // Index of one of the half-edges bordering the face
+    int mark;     // For highlighting or other purposes (ex : removeinfinite)
 } Face;
 
 typedef struct MyMesh {
@@ -42,6 +45,12 @@ typedef struct HilbertPoint {
     int* bits; // Hilbert curve bits
 } HilbertPoint;
 
+// Structure temporaire pour le tri (index + coordonnée)
+typedef struct {
+    int index;
+    double x;
+} VertexKey;
+
 
 int createInitialTriangles(MyMesh* mesh);
 int printMesh(FILE* out, Vertex* points, HalfEdge* halfedges, Face* faces, int num_faces);
@@ -61,6 +70,14 @@ int getBadFace(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_
 void getNeighbours(MyMesh* mesh, int** bad_faces, int* bad_face_count, int* max_bad_faces, Vertex p, int actual_face);
 
 void findBoundary(MyMesh* mesh, int* bad_faces, int bad_face_count, int** boundary_edges, int* boundary_edge_count, int* max_boundary_edges, int** removed_halfedges_2, int* removed_halfedge_count_2, int* max_removed_halfedges_2);
+
+int* cleanupMesh(MyMesh* mesh, int* inf_bound, int len_bound);
+void removeInfinitePoints(MyMesh* mesh, int* first_hes);
+int* convex_bound_points(Vertex* points, int num_vertices, int* hullsize);
+int compare_vertex_indexed(const void* a, const void* b);
+void flip(MyMesh* mesh, int he_idx, int a_idx, int b_idx, int c_idx, int d_idx);
+void fill_convex_hull(MyMesh* mesh, int* hull, int hull_size, int* inf_bound, int len_bound);
+
 
 int testDelaunay(MyMesh* mesh);
 
