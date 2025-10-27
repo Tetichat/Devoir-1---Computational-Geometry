@@ -434,7 +434,7 @@ void insertPoint(
         int count_rm_he_1 = removed_halfedges_1->count;
 
         if (count_rm_he_1 == 0) {
-            if (mesh->num_halfedges >= mesh->max_halfedges) {
+            if (mesh->num_halfedges + 2 > mesh->max_halfedges) {
                 mesh->max_halfedges *= 2;
                 mesh->halfedges = (HalfEdge*) realloc(mesh->halfedges, mesh->max_halfedges * sizeof(HalfEdge));
             }
@@ -444,7 +444,7 @@ void insertPoint(
             he2  = &mesh->halfedges[he2_idx = mesh->num_halfedges++];
         }
         else if (count_rm_he_1 == 1) {
-            if(mesh->num_halfedges >= mesh->max_halfedges) {
+            if(mesh->num_halfedges + 1 > mesh->max_halfedges) {
                 mesh->max_halfedges *= 2;
                 mesh->halfedges = (HalfEdge*)realloc(mesh->halfedges, mesh->max_halfedges * sizeof(HalfEdge));
             }
@@ -487,7 +487,7 @@ void insertPoint(
             bad_faces->count--;
         }
         else{
-            if (mesh->num_faces >= mesh->max_faces) {
+            if (mesh->num_faces + 1 > mesh->max_faces) {
                 mesh->max_faces += 1000;
                 mesh->faces = (Face*)realloc(mesh->faces, mesh->max_faces * sizeof(Face));
             }

@@ -275,13 +275,14 @@ int main(int argc, char* argv[]) {
     }
 
     // Call your Delaunay triangulation function
-    MyMesh mesh;
-    int result = Cdelaunay(argv[1], argv[2], &mesh);
+    MyMesh *meshp = NULL;
+    int result = Cdelaunay(argv[1], argv[2], &meshp);
     if (result == 0) {
         printf("Delaunay triangulation completed successfully.\n");
     } else {
         printf("Error in Delaunay triangulation.\n");
     }
+    MyMesh mesh = *meshp;
 
     // Add a maximum of 100 extra vertices for user clicks
     int max_additional_vertices = 100;
@@ -396,8 +397,8 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        // Draw vertices
-        for (int i = 0; i < mesh.num_vertices+4; i++) {
+        // Draw vertices (only the actual vertices, not the extremity points)
+        for (int i = 0; i < mesh.num_vertices; i++) {
             draw_vertex(&ctx, mesh.vertices[i], 3, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PURPLE));
         }
 
@@ -470,6 +471,13 @@ int main(int argc, char* argv[]) {
     
     free(adj_faces);
     free(adj_verts);
+    
+    // Free the mesh arrays (they were reallocated locally)
+    free(mesh.vertices);
+    free(mesh.halfedges); 
+    free(mesh.faces);
+    free(meshp); // Free the original mesh structure
+    
     return result;
 }
 
