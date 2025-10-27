@@ -394,7 +394,7 @@ int* cleanupMesh(MyMesh* mesh, int* inf_bound, int len_bound){
 
     mesh->num_halfedges = new_hecount;
     mesh->num_faces = new_fcount;
-    mesh->num_vertices -= 4; // car les 4 sommets infinis sont les derniers
+    mesh->num_vertices -= 4; // ne tenait deja pas compte de ceux la initialement 
 
     free(he_index_map);
     free(f_index_map);
@@ -403,82 +403,83 @@ int* cleanupMesh(MyMesh* mesh, int* inf_bound, int len_bound){
 
 
 
-
 void removeInfinitePoints(MyMesh* mesh, int* first_hes) {
-    int num_first_hes = 4;                                              //faces a supprimer
-    int* prebound = malloc(mesh->num_halfedges * sizeof(int));          //permet de trouver la frontiere pour apres
+    int num_first_hes = 4;      
+    int* prebound = malloc(mesh->num_halfedges * sizeof(int));
     int len_bound = 0;
 
-    //on initalise mark
-    for (int i = 0; i<mesh->num_halfedges;i++){
-        mesh->halfedges[i].mark = 0;
+    //on initialise le maqrqueur mark de tous nos halfedges et faces
+    for (int i = 0; i<mesh->num_halfedges;i++){             //checker si numhalfedge est le bon
+        mesh->halfedges[i].mark = 0;  
     }
     for (int i=0; i<mesh->num_faces;i++){
-        mesh->faces[i].mark =0;
+        mesh->faces[i].mark =0 ;
     }
+
+    // on initialise aussi prebound
 
     for (int i = 0; i < mesh->num_halfedges; i++) {
         prebound[i] = -1;
     }
-    
-    // --- identification des halfedges et faces a supprimer ---
-    //on parcourt les 4 halfedges initiaux
-    for (int i = 0; i < num_first_hes; i++) {
+    //maintenant que tout est initialisé, on doit marquer ce qu'il faut supprimer.
 
+    for (int i = 0; i < num_first_hes; i++) {
         int he = first_hes[i];
         int f = mesh->halfedges[he].face;
 
         mesh->halfedges[he].mark = 1;
-        mesh->faces[f].mark = 1;
+        if (f != -1) {
+            mesh->faces[f].mark = 1;
+        }
         
         int following = mesh->halfedges[mesh->halfedges[he].next].twin;
         HalfEdge* main_he = &mesh->halfedges[following];
-        
+
         while (main_he->next != first_hes[(i + 1) % num_first_hes]) {
             
             prebound[mesh->halfedges[mesh->halfedges[main_he->next].next].twin] = len_bound;
             len_bound++; 
 
+            //on marque le he frontiere, et les deux coté de l'arrete qu'on est entrain de supprimer
             mesh->halfedges[following].mark = 1;
             mesh->halfedges[main_he->twin].mark = 1;
-            mesh->faces[main_he->face].mark = 1;
+            mesh->halfedges[mesh->halfedges[main_he->next].next].mark = 1;
+            int face_index = main_he->face;
+            if (face_index != -1) {
+                mesh->faces[face_index].mark = 1;
+            }
 
             following = mesh->halfedges[main_he->next].twin;
             main_he = &mesh->halfedges[following];
         }
+        
 
-    
         mesh->halfedges[following].mark = 1;
         mesh->halfedges[main_he->twin].mark = 1;
+            
     }
 
-    // --- construction de la frontiere ---
     int* inf_bound = malloc(len_bound * sizeof(int));
-    //de cette maniere, on obtient la frontiere dans le bon ordre
-    for (int i =0; i<mesh->num_halfedges;i++){
+    for(int i = 0; i<mesh->num_halfedges;i++){
         if (prebound[i] != -1){
             inf_bound[prebound[i]] = i;
-            
         }
     }
 
-
-    // --- cleaning du mesh ---
-    //maintenant, on a la frontiere. On Peut cleanup le mesh, c'est a dire mettre tous les indices a jour.
     int* new_inf_bound = cleanupMesh(mesh, inf_bound, len_bound);
-
+    
 
     // --- construction de l'enveloppe convexe ---
     int hullsize;
     int* hull = convex_bound_points(mesh->vertices, mesh->num_vertices, &hullsize);
     fill_convex_hull(mesh, hull, hullsize, new_inf_bound, len_bound);
     
-
+    
     // --- free ---
     free(prebound);
     free(new_inf_bound);
     free(hull);
-    
+
 }
 
 

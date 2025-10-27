@@ -3,8 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "functions.h"
-
-
+#define DEBUG
 
 // A simple function that performs Delaunay triangulation
 int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
@@ -261,12 +260,12 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
     first_hes[1] = 1;
     first_hes[2] = 4;
     first_hes[3] = 5;
-
+    
     removeInfinitePoints(mesh, first_hes);
     free(first_hes);
 
 
-#if DEBUG
+#ifdef DEBUG
     testDelaunay(mesh);
     printf("Tested triangulation with %d faces\n", mesh->num_faces);
 #endif
