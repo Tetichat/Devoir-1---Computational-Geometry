@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "lloyd.h"
 #include "visualize.h"
 
 #define CLAY_IMPLEMENTATION
@@ -152,7 +153,12 @@ void draw_init(DrawCtx *ctx, MyMesh *mesh) {
         .window_width = 800, .window_height = 600,
         .min_x = min_x, .min_y = min_y, .max_x = max_x, .max_y = max_y,
         .mesh = mesh,
-        .zoom = 1.
+        .zoom = 1.,
+        .voronoi_button = {
+            .label = CLAY_STRING_CONST("Voronoi"),
+            .text = CLAY_STRING_CONST("Draw Voronoi"),
+            .on = 0,
+        },
     };
 }
 
@@ -174,6 +180,8 @@ void draw_edge(DrawCtx *ctx, Vertex v1, Vertex v2, Color color) {
     
     // Draw the edge from (x1, y1) to (x2, y2)
     DrawLine((int)x1, (int)y1, (int)x2, (int)y2, color);
+    // printf("%lf, %lf, %lf, %lf\n", x1, y1, x2, y2);
+    // exit(0);
 }
 
 void draw_handle_user(DrawCtx *ctx) {
@@ -181,11 +189,31 @@ void draw_handle_user(DrawCtx *ctx) {
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         Vector2 mousePos = GetMousePosition();
         double x = mousePos.x, y = mousePos.y;
-        viewportToGeo(ctx, x, y, &x, &y);
-        
-        Vertex newVertex = {x, y}; 
-        _newInsert = 1;
-        //TODO: 
+
+        if (y >= ctx->header_height) { // Clicked below header
+            viewportToGeo(ctx, x, y, &x, &y);
+            
+            Vertex newVertex = {x, y}; 
+            _newInsert = 1;
+
+            printf("New vertex at (%f, %f)\n", newVertex.x, newVertex.y);
+            
+            // TODO: Tidy up and realloc on insertion if cap exceeded
+            ctx->mesh->vertices[ctx->mesh->num_vertices++] = newVertex;
+            rebuild_triangulation(ctx->mesh);
+            double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
+            double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
+            for (int i = 0; i < ctx->mesh->num_vertices; i++) {
+                if (ctx->mesh->vertices[i].x < min_x) min_x = ctx->mesh->vertices[i].x;
+                if (ctx->mesh->vertices[i].x > max_x) max_x = ctx->mesh->vertices[i].x;
+                if (ctx->mesh->vertices[i].y < min_y) min_y = ctx->mesh->vertices[i].y;
+                if (ctx->mesh->vertices[i].y > max_y) max_y = ctx->mesh->vertices[i].y;
+            }
+            ctx->min_x = min_x;
+            ctx->min_y = min_y;
+            ctx->max_x = max_x;
+            ctx->max_y = max_y;
+        }
         
     // Press the middle mouse button to pan around
     } else if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
@@ -209,11 +237,40 @@ void draw_handle_user(DrawCtx *ctx) {
         ctx->zoom = 1.;
     } 
     else if (IsKeyPressed(KEY_H)) {
-        _headerToggle = 1 - _headerToggle; 
+        _headerToggle = !_headerToggle; 
     }
     else if (IsKeyPressed(KEY_V)) { // TODO: Transform into checkbox with the triangulation
-        _voronoiToggle = 1 - _voronoiToggle; 
+        ctx->voronoi_button.on = !ctx->voronoi_button.on; 
     }
+    else if (IsKeyPressed(KEY_SLASH)) { // Equal
+        // Using a lerp to have a smoother evolution
+        for (int vertex_id = 0; vertex_id < ctx->mesh->num_vertices; vertex_id++) {
+            Vertex centroid = compute_voronoi_cell_centroid(ctx->mesh, vertex_id); 
+            ctx->mesh->vertices[vertex_id].x = Lerp(ctx->mesh->vertices[vertex_id].x, centroid.x, 0.3);
+            ctx->mesh->vertices[vertex_id].y = Lerp(ctx->mesh->vertices[vertex_id].y, centroid.y, 0.3);
+            _newInsert = 1;
+        }
+
+        // TODO: Tidy up
+        rebuild_triangulation(ctx->mesh);
+        double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
+        double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
+        for (int i = 0; i < ctx->mesh->num_vertices; i++) {
+            if (ctx->mesh->vertices[i].x < min_x) min_x = ctx->mesh->vertices[i].x;
+            if (ctx->mesh->vertices[i].x > max_x) max_x = ctx->mesh->vertices[i].x;
+            if (ctx->mesh->vertices[i].y < min_y) min_y = ctx->mesh->vertices[i].y;
+            if (ctx->mesh->vertices[i].y > max_y) max_y = ctx->mesh->vertices[i].y;
+        }
+        ctx->min_x = min_x;
+        ctx->min_y = min_y;
+        ctx->max_x = max_x;
+        ctx->max_y = max_y;
+    }
+
+    // int key;
+    // if ((key = GetKeyPressed()) > 0) {
+    //     printf("%d\n", key);
+    // }
 }
 
 void render_shortcuts_grid(int headerAlpha) {
@@ -221,7 +278,7 @@ void render_shortcuts_grid(int headerAlpha) {
         CLAY_STRING_CONST("Esc - Quit"),
         CLAY_STRING_CONST("C - Recenter"),
         CLAY_STRING_CONST("H - Toggle header"),
-        CLAY_STRING_CONST("V - Toggle Voronoi"),
+        CLAY_STRING_CONST("V - Draw Voronoi"),
         // New shortcuts go here...
     };
 
@@ -263,9 +320,59 @@ void render_shortcuts_grid(int headerAlpha) {
     }
 }
 
+void render_button(Button *button) {
+    uint32_t id = (uint32_t)(uintptr_t)button;
+
+    CLAY({
+        CLAY_IDI("_Button", id),
+        .layout = {
+            .padding = 3,
+            .childGap = 5,
+        },
+        .backgroundColor = APP_VVDARK,
+    }) {
+
+        CLAY_TEXT(button->text, CLAY_TEXT_CONFIG({
+            .fontId = FONT_BODY_INDEX,
+            .fontSize = 20,
+            .textColor = APP_PALE_PURPLE,
+            .textAlignment = CLAY_TEXT_ALIGN_CENTER,
+        }));
+
+        CLAY({
+            .id = CLAY_IDI("_ButtonInner", id),
+            .layout = {
+                .sizing = {
+                    .width = CLAY_SIZING_FIXED(20),
+                    .height = CLAY_SIZING_FIXED(20),
+                },
+            },
+            .cornerRadius = CLAY_CORNER_RADIUS(3),
+            .border = { 
+                .color = APP_PURPLE,
+                .width = BORDER_WIDTH_ALL(2), 
+            },
+        }) {
+    
+            if (Clay_Hovered() && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+                button->on = !button->on;
+    
+            if (button->on) {
+                CLAY({
+                    .id = CLAY_IDI("_ButtonInnerContent", id),
+                    .layout = {
+                        .sizing = sizing_expand,
+                    },
+                    .backgroundColor = APP_PALE_PURPLE,
+                    .cornerRadius = CLAY_CORNER_RADIUS(3),
+                }) {};
+            }
+        };
+    }
+}
+
 
 uint8_t _headerToggle = 1;
-uint8_t _voronoiToggle = 0;
 uint8_t _newInsert = 1;
 
 int main(int argc, char* argv[]) {
@@ -375,6 +482,24 @@ int main(int argc, char* argv[]) {
                     if (_headerToggle)
                         render_shortcuts_grid(headerAlpha);
                 }
+
+                CLAY({
+                    ID("HeaderPadding"),
+                    .layout = {
+                        .sizing = sizing_expand,
+                    }
+                }) {}
+
+                CLAY({
+                    ID("HeaderButtons"),
+                    .layout = {
+                        .padding = CLAY_PADDING_ALL(5),
+                    },
+                }) {
+
+                    if (_headerToggle)
+                        render_button(&ctx.voronoi_button);
+                }
             }
         }
  
@@ -400,6 +525,7 @@ int main(int argc, char* argv[]) {
         // Draw vertices (only the actual vertices, not the extremity points)
         for (int i = 0; i < mesh.num_vertices; i++) {
             draw_vertex(&ctx, mesh.vertices[i], 3, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PURPLE));
+            draw_vertex(&ctx, compute_voronoi_cell_centroid(&mesh, i), 3, GREEN);
         }
 
         if (_newInsert) { // Mesh has changed -> Recompute adjacency
@@ -415,7 +541,6 @@ int main(int argc, char* argv[]) {
 
             for (int face_id = 0; face_id < mesh.num_faces; face_id++) {
                 HalfEdge he = mesh.halfedges[mesh.faces[face_id].halfedge];
-                double x[3], y[3];
                 
                 for (int i = 0; i < 3; i++) {
                     if (he.twin != -1) {
@@ -424,27 +549,16 @@ int main(int argc, char* argv[]) {
                     }
                     
                     he = mesh.halfedges[he.next];
-                    x[i] = mesh.vertices[he.vertex].x;
-                    y[i] = mesh.vertices[he.vertex].y;
                 }
     
-                // Compute circumcenter
-                double 
-                    d1 = x[1]*x[1] + y[1]*y[1] - x[0]*x[0] - y[0]*y[0],
-                    d2 = x[2]*x[2] + y[2]*y[2] - x[1]*x[1] - y[1]*y[1]
-                ;
-                double denom = 2. * ((x[1]-x[0])*(y[2]-y[1]) - (y[1]-y[0])*(x[2]-x[1]));
-                double cx = ((y[2]-y[1])*d1 - (y[1]-y[0])*d2) / denom;
-                double cy = ((x[1]-x[0])*d2 - (x[2]-x[1])*d1) / denom;
-    
-                adj_verts[face_id] = (Vertex){ cx, cy };
-            }   
+                adj_verts[face_id] = compute_circumcenter(&mesh, face_id);
+            }
             
             _newInsert = 0;
         }
 
         // Drawing the Voronoi diagram 
-        if (_voronoiToggle) {
+        if (ctx.voronoi_button.on) {
             for (int face_id = 0; face_id < mesh.num_faces; face_id++) {
                 Vertex v = adj_verts[face_id];
                 draw_vertex(&ctx, v, 3, CLAY_COLOR_TO_RAYLIB_COLOR(APP_FADED_RED));
@@ -463,6 +577,12 @@ int main(int argc, char* argv[]) {
         Clay_Raylib_Render(renderCommands, fonts);
 
         EndDrawing();
+
+
+        // Update header height in ctx
+        if (!_headerToggle) ctx.header_height = 0;
+        else
+            ctx.header_height = (int)Clay_GetElementData(CLAY_ID("Header")).boundingBox.height;
 
         draw_handle_user(&ctx);
     }
