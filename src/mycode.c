@@ -78,7 +78,7 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
 #if PYTHON_BINDING
     freeMesh(mesh);
 #else
-    *(MyMesh**)myMesh = (MyMesh*)mesh;
+    *(MyMesh*)myMesh = *mesh;
 #endif
 
     freeList(bad_faces);
