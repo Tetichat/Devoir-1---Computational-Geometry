@@ -34,7 +34,7 @@ enum {
 Font fonts[FONT_COUNT];
 
 static inline void geoToViewport(DrawCtx *ctx, double x, double y, double *vpx, double *vpy) {
-    double L = ctx->mesh->L + 0.05;
+    double L = 0.05;//ctx->mesh->L + 0.05;
     
     double 
         min_x = ctx->min_x - L, // +- L to include the big rectangle, 
@@ -87,7 +87,7 @@ static inline void geoToViewport(DrawCtx *ctx, double x, double y, double *vpx, 
 }
 
 static inline void viewportToGeo(DrawCtx *ctx, double vpx, double vpy, double *x, double *y) {
-    double L = ctx->mesh->L + 0.05;
+    double L = 0.05;//ctx->mesh->L + 0.05;
     
     double 
         min_x = ctx->min_x - L,
