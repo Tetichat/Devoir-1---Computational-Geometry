@@ -78,6 +78,8 @@ int compare_vertex_indexed(const void* a, const void* b);
 void flip(MyMesh* mesh, int he_idx, int a_idx, int b_idx, int c_idx, int d_idx);
 void fill_convex_hull(MyMesh* mesh, int* hull, int hull_size, int* inf_bound, int len_bound);
 
+void meshtofile(MyMesh* mesh, const char* output_file, 
+                int* highlight_halfedges, int num_highlight) ;
 
 int testDelaunay(MyMesh* mesh);
 

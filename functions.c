@@ -394,7 +394,7 @@ int* cleanupMesh(MyMesh* mesh, int* inf_bound, int len_bound){
 
     mesh->num_halfedges = new_hecount;
     mesh->num_faces = new_fcount;
-    mesh->num_vertices -= 4; // ne tenait deja pas compte de ceux la initialement 
+    //mesh->num_vertices -= 4; // ne tenait deja pas compte de ceux la initialement 
 
     free(he_index_map);
     free(f_index_map);
@@ -409,20 +409,28 @@ void removeInfinitePoints(MyMesh* mesh, int* first_hes) {
     int len_bound = 0;
 
     //on initialise le maqrqueur mark de tous nos halfedges et faces
-    for (int i = 0; i<mesh->num_halfedges;i++){             //checker si numhalfedge est le bon
-        mesh->halfedges[i].mark = 0;  
-    }
+    
     for (int i=0; i<mesh->num_faces;i++){
         mesh->faces[i].mark =0 ;
     }
+    for (int i = 0; i<mesh->num_halfedges;i++){            
+        mesh->halfedges[i].mark = 1;  
+    }
 
+    for (int i=0; i<mesh->num_faces;i++){
+        int he = mesh->faces[i].halfedge;
+        for (int j=0;j<3;j++){
+            mesh->halfedges[he].mark =0 ;
+            he = mesh->halfedges[he].next;
+        }
+    }
     // on initialise aussi prebound
 
     for (int i = 0; i < mesh->num_halfedges; i++) {
         prebound[i] = -1;
     }
     //maintenant que tout est initialisé, on doit marquer ce qu'il faut supprimer.
-
+    
     for (int i = 0; i < num_first_hes; i++) {
         int he = first_hes[i];
         int f = mesh->halfedges[he].face;
@@ -439,7 +447,7 @@ void removeInfinitePoints(MyMesh* mesh, int* first_hes) {
             
             prebound[mesh->halfedges[mesh->halfedges[main_he->next].next].twin] = len_bound;
             len_bound++; 
-
+            
             //on marque le he frontiere, et les deux coté de l'arrete qu'on est entrain de supprimer
             mesh->halfedges[following].mark = 1;
             mesh->halfedges[main_he->twin].mark = 1;
@@ -482,6 +490,100 @@ void removeInfinitePoints(MyMesh* mesh, int* first_hes) {
 
 }
 
+
+void meshtofile(MyMesh* mesh, const char* output_file, 
+                int* highlight_halfedges, int num_highlight) 
+{
+    FILE* outfile = fopen(output_file, "w");
+    if (!outfile) {
+        perror("Failed to open output file");
+        return;
+    }
+
+    fprintf(outfile, "# ============================================\n");
+    fprintf(outfile, "# Mesh export\n");
+    fprintf(outfile, "# Vertices, HalfEdges, Faces\n");
+    fprintf(outfile, "# ============================================\n\n");
+
+    // ============================
+    // 1️⃣  Vertices section
+    // ============================
+    fprintf(outfile, "# Vertices (index, x, y)\n");
+    fprintf(outfile, "VERTICES %d\n", mesh->num_vertices);
+    for (int i = 0; i < mesh->num_vertices; i++) {
+        Vertex* v = &mesh->vertices[i];
+        fprintf(outfile, "%d %.10f %.10f\n", i, v->x, v->y);
+    }
+    fprintf(outfile, "\n");
+
+    // ============================
+    // 2️⃣  HalfEdges section
+    // ============================
+    fprintf(outfile, "# HalfEdges (index, vertex, next, twin, face)\n");
+    fprintf(outfile, "HALFEDGES %d\n", mesh->num_halfedges);
+    for (int i = 0; i < mesh->num_halfedges; i++) {
+        HalfEdge* he = &mesh->halfedges[i];
+        fprintf(outfile, "%d %d %d %d %d\n",
+                i, he->vertex, he->next, he->twin, he->face);
+    }
+    fprintf(outfile, "\n");
+
+    // ============================
+    // 3️⃣  Faces section
+    // ============================
+    fprintf(outfile, "# Faces (index, halfedge)\n");
+    fprintf(outfile, "FACES %d\n", mesh->num_faces);
+    for (int i = 0; i < mesh->num_faces; i++) {
+        Face* f = &mesh->faces[i];
+        fprintf(outfile, "%d %d\n", i, f->halfedge);
+    }
+    fprintf(outfile, "\n");
+
+    // ============================
+    // 4️⃣  Triangles section (for plotting)
+    // ============================
+    fprintf(outfile, "# Triangles (face index, 3 vertex indices)\n");
+    fprintf(outfile, "TRIANGLES %d\n", mesh->num_faces);
+    for (int i = 0; i < mesh->num_faces; i++) {
+        int he1 = mesh->faces[i].halfedge;
+        if (he1 < 0 || he1 >= mesh->num_halfedges) continue;
+
+        int he2 = mesh->halfedges[he1].next;
+        int he3 = mesh->halfedges[he2].next;
+        if (he2 < 0 || he3 < 0 ||
+            he2 >= mesh->num_halfedges || he3 >= mesh->num_halfedges)
+            continue;
+
+        int v1 = mesh->halfedges[he1].vertex;
+        int v2 = mesh->halfedges[he2].vertex;
+        int v3 = mesh->halfedges[he3].vertex;
+
+        fprintf(outfile, "%d %d %d %d\n", i, v1, v2, v3);
+    }
+    fprintf(outfile, "\n");
+
+    // ============================
+    // 5️⃣  Highlighted HalfEdges
+    // ============================
+    if (highlight_halfedges != NULL && num_highlight > 0) {
+        fprintf(outfile, "# Highlighted HalfEdges (indices)\n");
+        fprintf(outfile, "HIGHLIGHTED %d\n", num_highlight);
+        for (int i = 0; i < num_highlight; i++) {
+            fprintf(outfile, "%d\n", highlight_halfedges[i]);
+        }
+        fprintf(outfile, "\n");
+    }
+
+    // ============================
+    // Footer
+    // ============================
+    fprintf(outfile, "# ============================================\n");
+    fprintf(outfile, "# End of mesh export\n");
+    fprintf(outfile, "# ============================================\n");
+
+    fclose(outfile);
+    printf("✅ Mesh successfully written to '%s'\n", output_file);
+}
 
 int* convex_bound_points(Vertex* points, int num_vertices, int* hullsize){
     //on cree une copy de points
@@ -603,6 +705,7 @@ void flip(MyMesh* mesh, int he_idx, int a_idx, int b_idx, int c_idx, int d_idx) 
     uno->next = he_idx;
     cuatro->next = uno_idx;
     he->next = cuatro_idx;
+    uno->face = f1_idx;
 
 
     he->vertex = a_idx;       // nouvelle diagonale
@@ -612,9 +715,10 @@ void flip(MyMesh* mesh, int he_idx, int a_idx, int b_idx, int c_idx, int d_idx) 
 
     // --- mise à jour du second triangle ---   
 
-    dos->next = tres_idx;
+    dos->next = tres_idx;   
     tres->next = oppo_idx;
     oppo->next = dos_idx;
+    tres->face = f2_idx;
 
     oppo->vertex = d_idx;     // nouvelle diagonale
     oppo->face = f2_idx;
@@ -624,13 +728,11 @@ void flip(MyMesh* mesh, int he_idx, int a_idx, int b_idx, int c_idx, int d_idx) 
 }
 
 
-void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* inf_bound, int len_bound){
-
+void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* new_inf_bound, int len_bound){
     int nverts = mesh->num_vertices;
     size_t total_size = len_bound * 3 + nverts * 3;
-    int* pool = malloc(total_size * sizeof(int));
+    int* pool = malloc(total_size * sizeof(int));   
 
-    // de cette maniere on a un seul malloc
     int* bound_points = pool;
     int* next_points  = bound_points + len_bound;
     int* prev_points  = next_points + nverts;
@@ -642,16 +744,19 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* inf_bound, int
     memset(next_points, 0xFF, nverts * sizeof(int)); //0xFF c'est axactmenet la meme chose -1, mais ca evite de devoir faire la conversion de -1 vers ça
     memset(prev_points, 0xFF, nverts * sizeof(int));
     memset(he_of_point, 0xFF, nverts * sizeof(int));
+    memset(new, 0xFF, len_bound * sizeof(int));
+    memset(enseveli, 0xFF, len_bound * sizeof(int));
 
-    // --- Construire la frontière ---
+    // construction de bound points a partir de new_inf_bound
     for (int i = 0; i < len_bound; i++) {
-        int he_idx = inf_bound[i];
+        int he_idx = new_inf_bound[i];
         int v = mesh->halfedges[he_idx].vertex;
         bound_points[i] = v;
-        he_of_point[v] = he_idx;
+        he_of_point[v] = he_idx;  //normalement c'est bon
     }
 
-    for (int i = 0; i < len_bound; i++) {
+    // construction de next et prev 
+    for (int i = 0; i< len_bound; i++){
         int current = bound_points[i];
         int next = bound_points[(i + 1) % len_bound];
         int prev = bound_points[(i - 1 + len_bound) % len_bound];
@@ -659,169 +764,152 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* inf_bound, int
         prev_points[current] = prev;
     }
 
-    int enseveli_count = 0, new_count = 0;
+    //initialisation
+    int enseveli_count = 0, new_count = 0, delaunay = 0;
 
-    int v0 = prev_points[hull[0]];
     int v1 = hull[0];
     int v2 = next_points[v1];
     int v3 = next_points[v2];
+    int v0 = prev_points[v1];
 
-    while (v2 != hull[0] && enseveli_count < len_bound && new_count < len_bound) {
+    
+    while (v2 != hull[0]){
         
-        // --- 1 : on remplit forward ---
-        while (true){
+        //initialisation
+        //check_mesh_consistency(mesh);
+        //printf("v0, v1, v2, v3 = %d, %d, %d, %d\n",v0, v1, v2, v3);
 
-            //double p1[2] = { mesh->vertices[v1].x, mesh->vertices[v1].y };
-            //double p2[2] = { mesh->vertices[v2].x, mesh->vertices[v2].y };
-            //double p3[2] = { mesh->vertices[v3].x, mesh->vertices[v3].y };
-            //double p0[2] = { mesh->vertices[v0].x, mesh->vertices[v0].y };
 
-            //puisque x et y se suivent en memoire, on donne juste la position du x 
-            Vertex *vtx = mesh->vertices;
-            double *p1x = &vtx[v1].x;
-            double *p2x = &vtx[v2].x;
-            double *p3x = &vtx[v3].x;
-            double *p0x = &vtx[v0].x;
+        //forward
+        //double det = orient2d(&mesh->vertices[v1].x, &mesh->vertices[v2].x, &mesh->vertices[v3].x);
+        //printf("det = %lf\n", det);
+        while (orient2d(&mesh->vertices[v1].x, &mesh->vertices[v2].x, &mesh->vertices[v3].x) <0){
 
-            // --- cas 1 : angle (v1,v2,v3) convexe → on remplit un triangle
             
-            if (orient2d(p1x, p2x, p3x) < 0) {
+            //--- on doit creer le triangle (v1,v2,v3), avec les trois halfedge internes associés
+            // HALFEDEGE
+            int base_he = mesh->num_halfedges;
+            
+            HalfEdge* he1 = &mesh->halfedges[base_he + 0];
+            HalfEdge* he2 = &mesh->halfedges[base_he + 1];
+            HalfEdge* he3 = &mesh->halfedges[base_he + 2];
+            mesh->num_halfedges +=3 ;
 
-                enseveli[enseveli_count] = v2;
-                enseveli_count++;
+            he1->vertex = v1;
+            he2->vertex = v2;
+            he3->vertex = v3;
 
-                // Création d'une nouvelle face
-                int face_idx = mesh->num_faces++;
-                Face* new_face = &mesh->faces[face_idx];
-                int base = mesh->num_halfedges;
+            he1->next = base_he + 2;    // he3
+            he2->next = base_he ;       // he1
+            he3->next = base_he + 1;    // he2
 
-                // Crée 3 nouveaux halfedges
-                HalfEdge* he1 = &mesh->halfedges[base + 0];
-                HalfEdge* he2 = &mesh->halfedges[base + 1];
-                HalfEdge* he3 = &mesh->halfedges[base + 2];
+            he1->twin = -1; //lié a l'exteireur
+            he2->twin = he_of_point[v1];
+            he3->twin = he_of_point[v2];
 
-                new[new_count] = base +2;
-                new_count++;
+            mesh->halfedges[he_of_point[v1]].twin = base_he + 1;
+            mesh->halfedges[he_of_point[v2]].twin = base_he + 2;
 
-                he1->vertex = v2;
-                he2->vertex = v3;
-                he3->vertex = v1;
+            // FACE
+            int base_f = mesh->num_faces; //s'assurer que c'est le bon
+            Face* new_face = &mesh->faces[base_f];
+            mesh->num_faces += 1;
+            new_face->halfedge = base_he;
+            he1->face = base_f;
+            he2->face = base_f;
+            he3->face = base_f;
 
-                he1->next = base + 2;
-                he2->next = base + 0;
-                he3->next = base + 1;
+            // INCREMENTATION
+            
+            new[new_count] = base_he;
+            new_count++;
 
-                he1->twin = -1;
-                he2->twin = -1;
-                he3->twin = -1;
+            enseveli[enseveli_count] = v2;
+            enseveli_count++;
 
-                he1->face = face_idx;
-                he2->face = face_idx;
-                he3->face = face_idx;
+            he_of_point[v1] = base_he;
 
-                new_face->halfedge = base;
-                mesh->num_halfedges += 3;
+            next_points[v1] = v3;
+            prev_points[v3] = v1;
 
-                // Lie les halfedges de la frontière
-                int he_v1 = he_of_point[v1];
-                int he_v2 = he_of_point[v2];
-                mesh->halfedges[he_v1].twin = base; // relie à new he1
-                he1->twin = he_v1;
+            
+            v2 = v3;
+            v3 = next_points[v3];
 
-                mesh->halfedges[he_v2].twin = base + 1; // relie à new he2
-                he2->twin = he_v2;
-
-                he_of_point[v1] = base + 2; // nouvelle sortie depuis v1
-
-                // avancer le triplet
-                v2 = v3;
-                v3 = next_points[v2];
-            } else {
-                break;
-            }
         }
 
-        // --- 2 : on remplit backward
-        while (true){
+        //backward
+        while(orient2d(&mesh->vertices[v0].x, &mesh->vertices[v1].x, &mesh->vertices[v2].x) <0){
+            
+            //on doit refaire les triangles
+            // HALFEDEGS
+            int base_he = mesh->num_halfedges;
+            HalfEdge* he0 = &mesh->halfedges[base_he + 0];
+            HalfEdge* he1 = &mesh->halfedges[base_he + 1];
+            HalfEdge* he2 = &mesh->halfedges[base_he + 2];
+            mesh->num_halfedges+=3;
 
-            Vertex *vtx = mesh->vertices;
-            double *p1x = &vtx[v1].x;
-            double *p2x = &vtx[v2].x;
-            double *p3x = &vtx[v3].x;
-            double *p0x = &vtx[v0].x;
+            he0->vertex = v0;
+            he1->vertex = v1;
+            he2->vertex = v2;
 
-            if (orient2d(p0x, p1x, p2x) < 0) {
+            he0->next = base_he + 2;
+            he1->next = base_he ;
+            he2->next = base_he + 1;
 
-                enseveli[enseveli_count] = v1;
-                enseveli_count++;
+            he0->twin = -1;
+            he1->twin = he_of_point[v0];
+            he2->twin = he_of_point[v1];
+            mesh->halfedges[he_of_point[v0]].twin = base_he + 1;
+            mesh->halfedges[he_of_point[v1]].twin = base_he + 2;
 
-                int face_idx = mesh->num_faces++;
-                Face* new_face = &mesh->faces[face_idx];
-                int base = mesh->num_halfedges;
 
-                HalfEdge* he0 = &mesh->halfedges[base + 0];
-                HalfEdge* he1 = &mesh->halfedges[base + 1];
-                HalfEdge* he2 = &mesh->halfedges[base + 2];
+            // FACE
+            int base_f = mesh->num_faces;
+            Face* new_face = &mesh->faces[base_f];
+            mesh->num_faces+=1;
 
-                new[new_count] = base +2;
-                new_count++;
+            new_face->halfedge = base_he;
+            he0->face = base_f;
+            he1->face = base_f;
+            he2->face = base_f;
 
-                he0->vertex = v1;
-                he1->vertex = v2;
-                he2->vertex = v0;
+            
 
-                he0->next = base + 2;
-                he1->next = base + 0;
-                he2->next = base + 1;
+            // INCREMENTATION
 
-                he0->twin = -1;
-                he1->twin = -1;
-                he2->twin = -1;
+            new[new_count] = base_he;
+            new_count++;
 
-                he0->face = face_idx;
-                he1->face = face_idx;
-                he2->face = face_idx;
+            he_of_point[v0] = base_he;
 
-                new_face->halfedge = base;
-                mesh->num_halfedges += 3;
+            enseveli[enseveli_count] = v1;
+            enseveli_count++;
 
-                // relie twin aux arêtes de frontière
-                int he_v0 = he_of_point[v0];
-                int he_v1 = he_of_point[v1];
+            next_points[v0] = v2;
+            prev_points[v2] = v0;
 
-                mesh->halfedges[he_v0].twin = base; // twin de he0
-                he0->twin = he_v0;
+            v1 = v0;
+            v0 = prev_points[v0];
 
-                mesh->halfedges[he_v1].twin = base + 1;
-                he1->twin = he_v1;
-
-                he_of_point[v0] = base + 2;
-
-                
-                // recule le triplet
-                v1 = v0;
-                v0 = prev_points[v0];
-
-                //si on a v0 enseveli, on le recule jusqu'a ce que ce ne soit plus le cas.
-                int found;
-                do {
-                    found = 0;
-                    for (int i = 0; i < enseveli_count; i++) {
-                        if (enseveli[i] == v0) {
-                            v0 = prev_points[v0];
-                            found = 1;
-                            break;
-                        }
+            int found;
+            do {
+                found = 0;
+                for (int i = 0; i < enseveli_count; i++) {
+                    if (enseveli[i] == v0) {
+                        v0 = prev_points[v0];
+                        found = 1;
+                        break;
                     }
-                } while (found);
-                
-            } else {
-                break;
-            }
+                }
+            } while (found);
+
         }
 
         
-        bool v2_in_hull = false;
+
+        //flip
+        bool v2_in_hull = false;   //besoin de verifier si v2 est in hull. Si hull etait classé, on pourrait faire ça plus efficacement
         for (int i = 0; i < hull_size; i++) {
             if (v2 == hull[i]) {
                 v2_in_hull = true;
@@ -829,17 +917,16 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* inf_bound, int
             }
         }
 
-        //meshtofile(mesh, "mesh_debug.txt", inf_bound, len_bound);
-        // --- 3 : on flip les cavités si il y a lieu de le faire
-        if (v2_in_hull) {
-            int delaunay = 0;
-            while (delaunay == 0) {
+
+        if (v2_in_hull){
+            delaunay = 0;
+            while (delaunay == 0){
                 delaunay = 1;
-                for (int i = 0; i < new_count; i++) {
+                for (int i = 0; i<new_count;i++){
                     int he_idx = new[i];
                     HalfEdge* he = &mesh->halfedges[he_idx];
-                    if (he->twin < 0) {
-                        //printf("he border\n");
+                    
+                    if (he->twin == -1){
                         continue;
                     }
                     int he_prev = mesh->halfedges[he->next].next;
@@ -858,13 +945,7 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* inf_bound, int
                     Vertex pc = mesh->vertices[mesh->halfedges[he_next].vertex];
                     Vertex pd = mesh->vertices[mesh->halfedges[he_opp_prev].vertex];
 
-                    //printf("pa : (%.10g, %.10g)\n", pa.x, pa.y);
-                    //printf("pb : (%.10g, %.10g)\n", pb.x, pb.y);
-                    //printf("pc : (%.10g, %.10g)\n", pc.x, pc.y);
-                    //printf("pd : (%.10g, %.10g)\n", pd.x, pd.y);
-                    //double insiede = isInsideCircle(pa, pb, pc, pd);
-                    //printf("insiede : %.10g\n", insiede);
-                    if (isInsideCircle(pa, pb, pc, pd) < 0) {
+                    if (isInsideCircle(pa, pb, pc, pd) * orient2d(pa.x, pb.x, pc.x) >=  0){
                         flip(mesh, he_idx, pa_idx, pb_idx, pc_idx, pd_idx);
                         delaunay = 0;
                     }
@@ -872,17 +953,17 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* inf_bound, int
             }
             new_count = 0;
         }
+
+
         v0 = v1;
         v1 = v2;
         v2 = v3;
-        v3 = next_points[v2];
+        v3 = next_points[v3];
     }
 
-    //printf(" Concavity filling done.\n");
+    //meshtofile(mesh, "mesh_tridebug.txt", listofnew, listofnew_count);
     free(pool);
 }
-
-
 
 int testDelaunay(MyMesh* mesh) {
     for (int i = 0; i < mesh->num_faces; i++) {
@@ -904,7 +985,7 @@ int testDelaunay(MyMesh* mesh) {
             if (det > 0) {
                 printf("Delaunay violation: Point (%.2f, %.2f) is inside circumcircle of triangle with vertices (%.2f, %.2f), (%.2f, %.2f), (%.2f, %.2f)\n",
                        p.x, p.y, a.x, a.y, b.x, b.y, c.x, c.y);
-                return 1;
+                return 1; // Violation found
 
             }
         }
