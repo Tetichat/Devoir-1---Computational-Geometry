@@ -926,7 +926,7 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* new_inf_bound,
                     Vertex pc = mesh->vertices[mesh->halfedges[he_next].vertex];
                     Vertex pd = mesh->vertices[mesh->halfedges[he_opp_prev].vertex];
 
-                    if (isInsideCircle(pa, pb, pc, pd) * orient2d(pa.x, pb.x, pc.x) >=  0){
+                    if (isInsideCircle(pa, pb, pc, pd) <  0){ //a b c est ccw, donc on doit prendre l'autre norme. pas <= car si c'est sur lecercle, pas besoin de flip
                         flip(mesh, he_idx, pa_idx, pb_idx, pc_idx, pd_idx);
                         delaunay = 0;
                     }
