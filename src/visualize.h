@@ -22,14 +22,15 @@ typedef struct DrawCtx {
     int header_height; // If clicking in this area, ignore for adding points
 
     int panning_x, panning_y;
-    
     float zoom;
+    float lloyd_timer;
 
     Button voronoi_button;
     Button delaunay_button;
 
     uint8_t header_toggle;
     uint8_t update_needed;
+    uint8_t spooky_mode;
 } DrawCtx;
 
 void draw_init(DrawCtx *ctx, MyMesh *mesh);

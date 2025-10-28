@@ -1,5 +1,5 @@
 INC = -Iclay -Iraylib/include
-LIB = -L. -Lraylib/lib -Ltarget -lraylib -lm
+LIB = -Ltarget -Lraylib/lib -lmycode -lraylib -lm
 TARGET = target/
 SRC = src/
 

@@ -31,6 +31,7 @@ const Clay_Sizing sizing_expand = {
 
 enum {
     FONT_BODY_INDEX,
+    FONT_BODY_INDEX_SPOOKY,
     FONT_COUNT,
 };
 Font fonts[FONT_COUNT];
@@ -173,6 +174,7 @@ void draw_init(DrawCtx *ctx, MyMesh *mesh) {
 
         .update_needed = 1,
         .header_toggle = 1,
+        .spooky_mode = 0,
     };
 }
 
@@ -203,6 +205,10 @@ void draw_handle_user(DrawCtx *ctx) {
     if (!ctx->header_toggle) ctx->header_height = 0;
     else
         ctx->header_height = (int)Clay_GetElementData(CLAY_ID("Header")).boundingBox.height;
+
+    if (ctx->lloyd_timer > 0.) {
+        ctx->lloyd_timer -= GetFrameTime();
+    } 
 
     // Click event to add a new point
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -268,12 +274,23 @@ void draw_handle_user(DrawCtx *ctx) {
     else if (IsKeyPressed(KEY_D)) {
         ctx->delaunay_button.on = !ctx->delaunay_button.on; 
     }
-    else if (IsKeyPressed(KEY_SLASH)) { // Equal
+    else if (IsKeyPressed(KEY_S)) {
+        ctx->spooky_mode = !ctx->spooky_mode;
+    }
+    else if (IsKeyDown(KEY_SLASH) && ctx->lloyd_timer <= 0.) { // Equal
         // Using a lerp to have a smoother evolution
         for (int vertex_id = 0; vertex_id < ctx->mesh->num_vertices; vertex_id++) {
-            Vertex centroid = compute_voronoi_cell_centroid(ctx->mesh, vertex_id); 
-            ctx->mesh->vertices[vertex_id].x = Lerp(ctx->mesh->vertices[vertex_id].x, centroid.x, 0.3);
-            ctx->mesh->vertices[vertex_id].y = Lerp(ctx->mesh->vertices[vertex_id].y, centroid.y, 0.3);
+            Vertex centroid = compute_voronoi_cell_centroid(ctx->mesh, vertex_id);
+            
+            double lerp_factor = Clamp(100. / (
+                Max(
+                    abs(ctx->mesh->vertices[vertex_id].x - centroid.x),
+                    abs(ctx->mesh->vertices[vertex_id].y - centroid.y)
+                ) + 100.), 0., 1.
+            );
+            lerp_factor *= lerp_factor;
+            ctx->mesh->vertices[vertex_id].x = Lerp(ctx->mesh->vertices[vertex_id].x, centroid.x, lerp_factor);
+            ctx->mesh->vertices[vertex_id].y = Lerp(ctx->mesh->vertices[vertex_id].y, centroid.y, lerp_factor);
             ctx->update_needed = 1;
         }
 
@@ -291,6 +308,8 @@ void draw_handle_user(DrawCtx *ctx) {
         ctx->min_y = min_y;
         ctx->max_x = max_x;
         ctx->max_y = max_y;
+
+        ctx->lloyd_timer = .05; // If too small, crashes the app
     }
 
     // int key;
@@ -299,11 +318,12 @@ void draw_handle_user(DrawCtx *ctx) {
     // }
 }
 
-void render_shortcuts_grid() {
+void render_shortcuts_grid(DrawCtx *ctx) {
     static Clay_String shortcuts[] = {
         CLAY_STRING_CONST("Esc - Quit"),
         CLAY_STRING_CONST("C - Recenter"),
         CLAY_STRING_CONST("H - Toggle header"),
+        CLAY_STRING_CONST("+ - One Lloyd step"),
         // New shortcuts go here...
     };
 
@@ -334,7 +354,7 @@ void render_shortcuts_grid() {
             ) {
                 Clay_String sc = shortcuts[sc_id];
                 CLAY_TEXT(sc, CLAY_TEXT_CONFIG({
-                    .fontId = FONT_BODY_INDEX,
+                    .fontId = ctx->spooky_mode ? FONT_BODY_INDEX_SPOOKY : FONT_BODY_INDEX,
                     .fontSize = 20,
                     .textColor = APP_PALE_PURPLE,
                     .textAlignment = CLAY_TEXT_ALIGN_CENTER,
@@ -345,7 +365,7 @@ void render_shortcuts_grid() {
     }
 }
 
-void render_button(Button *button) {
+void render_button(DrawCtx *ctx, Button *button) {
     uint32_t id = (uint32_t)(uintptr_t)button;
 
     CLAY({
@@ -357,7 +377,7 @@ void render_button(Button *button) {
     }) {
 
         CLAY_TEXT(button->text, CLAY_TEXT_CONFIG({
-            .fontId = FONT_BODY_INDEX,
+            .fontId = ctx->spooky_mode ? FONT_BODY_INDEX_SPOOKY : FONT_BODY_INDEX,
             .fontSize = 20,
             .textColor = APP_PALE_PURPLE,
             .textAlignment = CLAY_TEXT_ALIGN_CENTER,
@@ -411,7 +431,7 @@ int main(int argc, char* argv[]) {
         printf("Error in Delaunay triangulation.\n");
     }
     MyMesh mesh = *meshp;
-    meshp = NULL; // Obsolete pointer
+    free(meshp); // Free the original mesh structure
 
     // Add a maximum of 100 extra vertices for user clicks
     mesh.max_vertices += max_additional_vertices;
@@ -435,6 +455,7 @@ int main(int argc, char* argv[]) {
     );
 
     fonts[FONT_BODY_INDEX] = LoadFontEx("fonts/Roboto-Regular.ttf", 40, NULL, 0);
+    fonts[FONT_BODY_INDEX_SPOOKY] = LoadFontEx("fonts/Spooky Theme.otf", 40, NULL, 0);
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
     for (uint32_t i = FONT_BODY_INDEX; i < FONT_COUNT; i++) {
@@ -500,7 +521,7 @@ int main(int argc, char* argv[]) {
                 }) {
 
                     if (ctx.header_toggle)
-                        render_shortcuts_grid(headerAlpha);
+                        render_shortcuts_grid(&ctx);
                 }
 
                 CLAY({
@@ -521,8 +542,8 @@ int main(int argc, char* argv[]) {
                 }) {
 
                     if (ctx.header_toggle) {
-                        render_button(&ctx.voronoi_button);
-                        render_button(&ctx.delaunay_button);
+                        render_button(&ctx, &ctx.voronoi_button);
+                        render_button(&ctx, &ctx.delaunay_button);
                     }
                 }
             }
@@ -550,7 +571,6 @@ int main(int argc, char* argv[]) {
             
             for (int i = 0; i < mesh.num_vertices; i++) {
                 draw_vertex(&ctx, mesh.vertices[i], 3, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PURPLE));
-                draw_vertex(&ctx, compute_voronoi_cell_centroid(&mesh, i), 3, GREEN);
             }
         }
 
@@ -597,6 +617,10 @@ int main(int argc, char* argv[]) {
                     draw_edge(&ctx, v, w, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PEACHY_PINK));
                 }
             }
+
+            for (int vertex_id = 0; vertex_id < mesh.num_vertices; vertex_id++) {
+                draw_vertex(&ctx, compute_voronoi_cell_centroid(&mesh, vertex_id), 3, GREEN);
+            }
         }
         
         // Render the UI on top
@@ -616,7 +640,6 @@ int main(int argc, char* argv[]) {
     free(mesh.vertices);
     free(mesh.halfedges); 
     free(mesh.faces);
-    free(meshp); // Free the original mesh structure
     
     return result;
 }
