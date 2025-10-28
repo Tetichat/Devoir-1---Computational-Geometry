@@ -17,11 +17,11 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
     printf("Read %d points from %s\n", mesh->num_vertices, input_file);
     
     List 
-    bad_faces,
-    boundary_edges,
-    removed_halfedges_1, // Front and back buffers for 
-    removed_halfedges_2, // removed half-edges
-    new_halfedges
+        bad_faces,
+        boundary_edges,
+        removed_halfedges_1, // Front and back buffers for 
+        removed_halfedges_2, // removed half-edges
+        new_halfedges
     ;
     
     initList(&bad_faces);

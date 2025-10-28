@@ -26,10 +26,11 @@ typedef struct DrawCtx {
     float zoom;
 
     Button voronoi_button;
-} DrawCtx;
+    Button delaunay_button;
 
-extern uint8_t _headerToggle;
-extern uint8_t _newInsert;
+    uint8_t header_toggle;
+    uint8_t update_needed;
+} DrawCtx;
 
 void draw_init(DrawCtx *ctx, MyMesh *mesh);
 void draw_vertex(DrawCtx *ctx, Vertex v, int size, Color color);

@@ -58,6 +58,12 @@ void addToList(List* l, int value);
 int getList(List *l, int idx);
 void emptyList(List *l);
 void freeList(List l);
+#define ARR_REALLOC(arr, num, max) do { \
+    if (num >= max) { \
+        max *= 2; \
+        arr = realloc(arr, sizeof(*(arr)) * max); \
+    } \
+} while (0);
 
 MyMesh* createMesh(char* input_file);
 int printMesh(FILE* out, MyMesh *mesh);

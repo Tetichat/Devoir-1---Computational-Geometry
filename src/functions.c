@@ -8,7 +8,7 @@ int createInitialTriangles(MyMesh* mesh) {
 
     mesh->num_halfedges = 6; // 2 triangles * 3 half-edges each
     mesh->num_faces = 2; // 2 initial triangles
-
+    
     // Find the bounding box of the points
     double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
     double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
@@ -434,20 +434,30 @@ void insertPoint(
         int count_rm_he_1 = removed_halfedges_1->count;
 
         if (count_rm_he_1 == 0) {
-            if (mesh->num_halfedges + 2 > mesh->max_halfedges) {
-                mesh->max_halfedges *= 2;
-                mesh->halfedges = (HalfEdge*) realloc(mesh->halfedges, mesh->max_halfedges * sizeof(HalfEdge));
-            }
+            // if (mesh->num_halfedges + 2 > mesh->max_halfedges) {
+            //     mesh->max_halfedges *= 2;
+            //     mesh->halfedges = (HalfEdge*) realloc(mesh->halfedges, mesh->max_halfedges * sizeof(HalfEdge));
+            // }
+            ARR_REALLOC(
+                mesh->halfedges,
+                mesh->num_halfedges + 2,
+                mesh->max_halfedges
+            )
 
             edge = &mesh->halfedges[he];
             he1  = &mesh->halfedges[he1_idx = mesh->num_halfedges++];
             he2  = &mesh->halfedges[he2_idx = mesh->num_halfedges++];
         }
         else if (count_rm_he_1 == 1) {
-            if(mesh->num_halfedges + 1 > mesh->max_halfedges) {
-                mesh->max_halfedges *= 2;
-                mesh->halfedges = (HalfEdge*)realloc(mesh->halfedges, mesh->max_halfedges * sizeof(HalfEdge));
-            }
+            // if(mesh->num_halfedges + 1 > mesh->max_halfedges) {
+            //     mesh->max_halfedges *= 2;
+            //     mesh->halfedges = (HalfEdge*)realloc(mesh->halfedges, mesh->max_halfedges * sizeof(HalfEdge));
+            // }
+            ARR_REALLOC(
+                mesh->halfedges,
+                mesh->num_halfedges + 1,
+                mesh->max_halfedges
+            )
             
             he1_idx = getList(removed_halfedges_1, count_rm_he_1 - 1);
             he1 = &mesh->halfedges[he1_idx];
@@ -487,10 +497,16 @@ void insertPoint(
             bad_faces->count--;
         }
         else{
-            if (mesh->num_faces + 1 > mesh->max_faces) {
-                mesh->max_faces += 1000;
-                mesh->faces = (Face*)realloc(mesh->faces, mesh->max_faces * sizeof(Face));
-            }
+            // if (mesh->num_faces + 1 > mesh->max_faces) {
+            //     mesh->max_faces += 1000;
+            //     mesh->faces = (Face*)realloc(mesh->faces, mesh->max_faces * sizeof(Face));
+            // }
+            ARR_REALLOC(
+                mesh->faces,
+                mesh->num_faces + 1,
+                mesh->max_faces
+            )
+
             Face* new_face = &mesh->faces[mesh->num_faces++];
             new_face->halfedge = he; // Point to one of the new half-edges
             edge->face = mesh->num_faces - 1;

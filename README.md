@@ -1,4 +1,4 @@
-# TODO
+# Computation Geometry - Homework 1
 
-- Supprimer les 4 coins originaux  !Concavité  DIEGO
-- Affichage graphique et Voronoï  ABEL
+## Visualize
+
