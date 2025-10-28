@@ -7,6 +7,8 @@
 #include "clay.h"
 #include "clay_renderer_raylib.c"
 
+#include "functions.h"
+
 
 #define APP_TRANSPARENT (Clay_Color){   0,   0,   0,   0 }
 #define APP_DARK        (Clay_Color){  48,  52,  70, 255 }
@@ -177,7 +179,13 @@ void draw_init(DrawCtx *ctx, MyMesh *mesh) {
         .spooky_mode = 0,
 
         .selected_vertex = -1,
-        .is_dragging = false
+        .is_dragging = false,
+
+        .preview_button = {
+            .label = CLAY_STRING_CONST("Preview"),
+            .text  = CLAY_STRING_CONST("P - Preview Insert"),
+            .on    = 0,
+        },
     };
 }
 
@@ -325,6 +333,9 @@ void draw_handle_user(DrawCtx *ctx) {
     }
     else if (IsKeyPressed(KEY_S)) {
         ctx->spooky_mode = !ctx->spooky_mode;
+    }
+    else if (IsKeyPressed(KEY_P)) {
+        ctx->preview_button.on = !ctx->preview_button.on;
     }
     else if (IsKeyDown(KEY_SLASH) && ctx->lloyd_timer <= 0.) { // Equal
         // Using a lerp to have a smoother evolution
@@ -593,6 +604,7 @@ int main(int argc, char* argv[]) {
                     if (ctx.header_toggle) {
                         render_button(&ctx, &ctx.voronoi_button);
                         render_button(&ctx, &ctx.delaunay_button);
+                        render_button(&ctx, &ctx.preview_button);
                     }
                 }
             }
@@ -623,6 +635,52 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // --- PREVIEW INSERT: FRONTIÈRE UNIQUEMENT ---------------------------------
+        if (ctx.preview_button.on && !ctx.is_dragging && !IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            Vector2 mp = GetMousePosition();
+            if (mp.y >= ctx.header_height) {
+
+                double gx, gy;
+                viewportToGeo(&ctx, mp.x, mp.y, &gx, &gy);      // vp -> geo
+                Vertex p = (Vertex){ gx, gy };
+
+                List bad_faces, boundary_edges, removed_halfedges;
+                initList(&bad_faces);
+                initList(&boundary_edges);
+                initList(&removed_halfedges);
+
+                static int start_face = 0; // tu peux le mémoriser pour accélérer le walk
+                if (getBadFace(ctx.mesh, &bad_faces, p, &start_face) == 0) {
+                    getNeighbours(ctx.mesh, &bad_faces, p, start_face);
+                    findBoundary(ctx.mesh, &bad_faces, &boundary_edges, &removed_halfedges);
+
+                    // 1) FRONTIÈRE : edges entre bad et good (ou bord)
+                    for (int i = 0; i < boundary_edges.count; ++i) {
+                        int he_idx = boundary_edges.data[i];
+                        HalfEdge *he = &ctx.mesh->halfedges[he_idx];
+                        Vertex v1 = ctx.mesh->vertices[he->vertex];
+                        Vertex v2 = ctx.mesh->vertices[ctx.mesh->halfedges[he->next].vertex];
+                        draw_edge(&ctx, v1, v2, RED);           // ou ta palette maison
+                    }
+
+                    // 2) INTÉRIEUR : edges entre deux bad faces
+                    //    (dedup : on ne trace qu'une fois par paire he/twin)
+                    for (int i = 0; i < removed_halfedges.count; ++i) {
+                        int he_idx = removed_halfedges.data[i];
+                        HalfEdge *he = &ctx.mesh->halfedges[he_idx];
+                        if (he->twin != -1 && he_idx < he->twin) {
+                            Vertex v1 = ctx.mesh->vertices[he->vertex];
+                            Vertex v2 = ctx.mesh->vertices[ctx.mesh->halfedges[he->next].vertex];
+                            draw_edge(&ctx, v1, v2, GOLD);      // autre couleur
+                        }
+                    }
+                }
+
+                freeList(bad_faces);
+                freeList(boundary_edges);
+                freeList(removed_halfedges);
+            }
+        }
         if (ctx.update_needed) { // Mesh has changed -> Recompute adjacency
 
             adj_faces = realloc(adj_faces, sizeof(int) * 3 * mesh.num_faces);

@@ -27,6 +27,7 @@ typedef struct DrawCtx {
 
     Button voronoi_button;
     Button delaunay_button;
+    Button preview_button;
 
     uint8_t header_toggle;
     uint8_t update_needed;
