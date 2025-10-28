@@ -175,6 +175,9 @@ void draw_init(DrawCtx *ctx, MyMesh *mesh) {
         .update_needed = 1,
         .header_toggle = 1,
         .spooky_mode = 0,
+
+        .selected_vertex = -1,
+        .is_dragging = false
     };
 }
 
@@ -200,6 +203,34 @@ void draw_edge(DrawCtx *ctx, Vertex v1, Vertex v2, Color color) {
     // exit(0);
 }
 
+// Retourne l'index du sommet le plus proche de la souris si à moins de radius_px pixels, sinon -1
+static int pick_vertex(DrawCtx *ctx, Vector2 mouse, double radius_px) {
+    int best = -1;
+    double best_d2 = radius_px * radius_px;
+    for (int i = 0; i < ctx->mesh->num_vertices; i++) {
+        double vx = ctx->mesh->vertices[i].x, vy = ctx->mesh->vertices[i].y;
+        double sx, sy;
+        geoToViewport(ctx, vx, vy, &sx, &sy);
+        double dx = sx - mouse.x, dy = sy - mouse.y;
+        double d2 = dx*dx + dy*dy;
+        if (d2 <= best_d2) { best_d2 = d2; best = i; }
+    }
+    return best;
+}
+
+static void recompute_bounds(DrawCtx *ctx) {
+    double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
+    double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
+    for (int i = 0; i < ctx->mesh->num_vertices; i++) {
+        if (ctx->mesh->vertices[i].x < min_x) min_x = ctx->mesh->vertices[i].x;
+        if (ctx->mesh->vertices[i].x > max_x) max_x = ctx->mesh->vertices[i].x;
+        if (ctx->mesh->vertices[i].y < min_y) min_y = ctx->mesh->vertices[i].y;
+        if (ctx->mesh->vertices[i].y > max_y) max_y = ctx->mesh->vertices[i].y;
+    }
+    ctx->min_x = min_x; ctx->min_y = min_y;
+    ctx->max_x = max_x; ctx->max_y = max_y;
+}
+
 void draw_handle_user(DrawCtx *ctx) {
     // Update header height in ctx
     if (!ctx->header_toggle) ctx->header_height = 0;
@@ -213,51 +244,69 @@ void draw_handle_user(DrawCtx *ctx) {
     // Click event to add a new point
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         Vector2 mousePos = GetMousePosition();
-        double x = mousePos.x, y = mousePos.y;
+        if (mousePos.y >= ctx->header_height) {
+            // 1) Essaie d'attraper un point proche
+            int picked = pick_vertex(ctx, mousePos, 8.0); // rayon de 8 px
+            if (picked >= 0) {
+                ctx->selected_vertex = picked;
+                ctx->is_dragging = true;
+            } else {
+                // 2) Pas de point sous la souris -> AJOUTER un nouveau point (comportement actuel)
+                double x = mousePos.x, y = mousePos.y;
+                viewportToGeo(ctx, x, y, &x, &y);
 
-        if (y >= ctx->header_height) { // Clicked below header
-            viewportToGeo(ctx, x, y, &x, &y);
-            
-            Vertex newVertex = {x, y}; 
-            ctx->update_needed = 1;
+                if (added_vertices == max_additional_vertices) {
+                    printf("You can't add more vertices\n");
+                    return;
+                }
+                added_vertices++;
+                ctx->mesh->vertices[ctx->mesh->num_vertices++] = (Vertex){x, y};
 
-            // TODO: Tidy up and realloc on insertion if cap exceeded
-            if (added_vertices == max_additional_vertices) {
-                printf("You can't add more vertices\n");
-                return;
+                // Reconstruire la triangulation après ajout (comportement existant)
+                rebuild_triangulation(ctx->mesh);     // déjà utilisé chez toi après ajout
+                recompute_bounds(ctx);
+                ctx->update_needed = 1;
             }
-            added_vertices++;
-
-            ctx->mesh->vertices[ctx->mesh->num_vertices++] = newVertex;
-            rebuild_triangulation(ctx->mesh);
-            double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
-            double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
-            for (int i = 0; i < ctx->mesh->num_vertices; i++) {
-                if (ctx->mesh->vertices[i].x < min_x) min_x = ctx->mesh->vertices[i].x;
-                if (ctx->mesh->vertices[i].x > max_x) max_x = ctx->mesh->vertices[i].x;
-                if (ctx->mesh->vertices[i].y < min_y) min_y = ctx->mesh->vertices[i].y;
-                if (ctx->mesh->vertices[i].y > max_y) max_y = ctx->mesh->vertices[i].y;
-            }
-            ctx->min_x = min_x;
-            ctx->min_y = min_y;
-            ctx->max_x = max_x;
-            ctx->max_y = max_y;
         }
-        
-    // Press the middle mouse button to pan around
-    } else if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
-        Vector2 mouseDelta = GetMouseDelta();
-        double dx = mouseDelta.x, dy = mouseDelta.y;
-
-        ctx->panning_x += dx;
-        ctx->panning_y += dy;
     }
-    
-    float zoom;
-    if ((zoom = GetMouseWheelMove()) != 0.) {
-        ctx->zoom += zoom / 10.;
+    else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && ctx->is_dragging) {
+        Vector2 mousePos = GetMousePosition();
+        double gx, gy;
+        viewportToGeo(ctx, mousePos.x, mousePos.y, &gx, &gy);
+
+        int v = ctx->selected_vertex;
+        ctx->mesh->vertices[v].x = gx;
+        ctx->mesh->vertices[v].y = gy;
+
+        // (option A) Rebuild à CHAQUE frame pendant le drag
+        rebuild_triangulation(ctx->mesh);
+
+        // Si tes bornes min/max servent pour le viewport, mets-les à jour aussi
+        recompute_bounds(ctx);
+
+        ctx->update_needed = 1;
+    }
+    else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && ctx->is_dragging) {
+        // Fin du drag -> reconstruire la triangulation une fois
+        ctx->is_dragging = false;
+        ctx->selected_vertex = -1;
+        rebuild_triangulation(ctx->mesh);
+        recompute_bounds(ctx);
+        ctx->update_needed = 1;
+    }
+
+    // --- PANNING / ZOOM : inchangé ---
+    if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
+        Vector2 mouseDelta = GetMouseDelta();
+        ctx->panning_x += mouseDelta.x;
+        ctx->panning_y += mouseDelta.y;
+    }
+    float z;
+    if ((z = GetMouseWheelMove()) != 0.) {
+        ctx->zoom += z / 10.;
         ctx->zoom = Clamp(ctx->zoom, 0.5, 5.0);
     }
+
 
     // Recenter (set panning to zero and zoom to 1) with 'C'
     if (IsKeyPressed(KEY_C)) {

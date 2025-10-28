@@ -31,6 +31,9 @@ typedef struct DrawCtx {
     uint8_t header_toggle;
     uint8_t update_needed;
     uint8_t spooky_mode;
+
+    int  selected_vertex;   // -1 si aucun
+    bool is_dragging;
 } DrawCtx;
 
 void draw_init(DrawCtx *ctx, MyMesh *mesh);
