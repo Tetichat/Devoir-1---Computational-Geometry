@@ -548,10 +548,9 @@ int main(int argc, char* argv[]) {
                 }
             }
             
-            // Draw vertices (only the actual vertices, not the extremity points)
-            for (int i = 0; i < mesh.num_vertices; i++) {
+            for (int i = 0; i < mesh.num_vertices+4; i++) {
                 draw_vertex(&ctx, mesh.vertices[i], 3, CLAY_COLOR_TO_RAYLIB_COLOR(APP_PURPLE));
-                draw_vertex(&ctx, compute_voronoi_cell_centroid(&mesh, i), 3, GREEN);
+                // draw_vertex(&ctx, compute_voronoi_cell_centroid(&mesh, i), 3, GREEN);
             }
         }
 

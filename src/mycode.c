@@ -51,9 +51,20 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
         insertPoint(mesh, hilbert_indices, &bad_faces, &boundary_edges, &removed_halfedges_1, &removed_halfedges_2, &new_halfedges, i);
     }
 
-    // Removal of infinite points - TODO
+    int* first_hes = (int*)malloc(4 * sizeof(int));
+    first_hes[0] = 0;
+    first_hes[1] = 1;
+    first_hes[2] = 4;
+    first_hes[3] = 5;
 
-#if DEBUG
+    
+    //meshtofile(mesh, "mesh_predebug.txt", removed_halfedges_1, removed_halfedge_count_1);
+    removeInfinitePoints(mesh, first_hes);
+    mesh->num_vertices -=4;  // -> convention differentes entre les differents
+    //meshtofile(mesh, "mesh_debug.txt", removed_halfedges_1, removed_halfedge_count_1);
+    free(first_hes);
+
+#ifdef DEBUG
     testDelaunay(mesh);
     printf("Tested triangulation with %d faces\n", mesh->num_faces);
 #endif
