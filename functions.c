@@ -730,22 +730,20 @@ void flip(MyMesh* mesh, int he_idx, int a_idx, int b_idx, int c_idx, int d_idx) 
 
 void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* new_inf_bound, int len_bound){
     int nverts = mesh->num_vertices;
-    size_t total_size = len_bound * 3 + nverts * 3;
+    size_t total_size = len_bound * 2 + nverts * 3;
     int* pool = malloc(total_size * sizeof(int));   
 
     int* bound_points = pool;
     int* next_points  = bound_points + len_bound;
     int* prev_points  = next_points + nverts;
     int* he_of_point  = prev_points + nverts;
-    int* enseveli     = he_of_point + nverts;
-    int* new    = enseveli + len_bound;
+    int* new    = he_of_point + nverts;
 
     //memset est plus rapide que des boucles C
     memset(next_points, 0xFF, nverts * sizeof(int)); //0xFF c'est axactmenet la meme chose -1, mais ca evite de devoir faire la conversion de -1 vers ça
     memset(prev_points, 0xFF, nverts * sizeof(int));
     memset(he_of_point, 0xFF, nverts * sizeof(int));
     memset(new, 0xFF, len_bound * sizeof(int));
-    memset(enseveli, 0xFF, len_bound * sizeof(int));
 
     // construction de bound points a partir de new_inf_bound
     for (int i = 0; i < len_bound; i++) {
@@ -765,7 +763,7 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* new_inf_bound,
     }
 
     //initialisation
-    int enseveli_count = 0, new_count = 0, delaunay = 0;
+    int new_count = 0, delaunay = 0;
 
     int v1 = hull[0];
     int v2 = next_points[v1];
@@ -824,9 +822,6 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* new_inf_bound,
             new[new_count] = base_he;
             new_count++;
 
-            enseveli[enseveli_count] = v2;
-            enseveli_count++;
-
             he_of_point[v1] = base_he;
 
             next_points[v1] = v3;
@@ -883,26 +878,12 @@ void fill_convex_hull(MyMesh* mesh, int* hull,int hull_size, int* new_inf_bound,
 
             he_of_point[v0] = base_he;
 
-            enseveli[enseveli_count] = v1;
-            enseveli_count++;
-
             next_points[v0] = v2;
             prev_points[v2] = v0;
 
             v1 = v0;
             v0 = prev_points[v0];
 
-            int found;
-            do {
-                found = 0;
-                for (int i = 0; i < enseveli_count; i++) {
-                    if (enseveli[i] == v0) {
-                        v0 = prev_points[v0];
-                        found = 1;
-                        break;
-                    }
-                }
-            } while (found);
 
         }
 
