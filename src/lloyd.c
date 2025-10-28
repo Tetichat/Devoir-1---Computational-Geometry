@@ -107,6 +107,15 @@ void rebuild_triangulation(MyMesh *mesh) {
         emptyList(&boundary_edges);
         emptyList(&new_halfedges);
     }
+
+    int* first_hes = (int*)malloc(4 * sizeof(int));
+    first_hes[0] = 0;
+    first_hes[1] = 1;
+    first_hes[2] = 4;
+    first_hes[3] = 5;
+
+    removeInfinitePoints(mesh, first_hes);
+    free(first_hes);
     
     freeList(bad_faces);
     freeList(boundary_edges);

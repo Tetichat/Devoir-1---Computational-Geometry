@@ -56,12 +56,8 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
     first_hes[1] = 1;
     first_hes[2] = 4;
     first_hes[3] = 5;
-
     
-    //meshtofile(mesh, "mesh_predebug.txt", removed_halfedges_1, removed_halfedge_count_1);
     removeInfinitePoints(mesh, first_hes);
-    mesh->num_vertices -=4;  // -> convention differentes entre les differents
-    //meshtofile(mesh, "mesh_debug.txt", removed_halfedges_1, removed_halfedge_count_1);
     free(first_hes);
 
 #ifdef DEBUG
