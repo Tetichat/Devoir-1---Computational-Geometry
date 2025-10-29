@@ -296,7 +296,7 @@ void draw_handle_user(DrawCtx *ctx) {
         // into infinity  
 
         ctx->update_needed = 1;
-        ctx->drag_timer = .1; // Limit recompute to every 100ms
+        ctx->drag_timer = .05; // Limit recompute to every 50ms
     }
     else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && ctx->is_dragging) {
         // Fin du drag -> reconstruire la triangulation une fois
