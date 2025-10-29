@@ -1,7 +1,7 @@
 # Computation Geometry - Homework 1
 
 ## Contributions
-- **Abel:** Implementation of the visualize application in [visualize.c](src/visualize.c) and [visualize.c](src/visualize.h) as well as the Lloyd's relaxation algorithm in [lloyd.c](src/lloyd.c) and [lloyd.h](src/lloyd.h).
+- **Abel:** Implementation of the visualize application in [visualize.c](src/visualize.c) and [visualize.h](src/visualize.h) as well as the Lloyd's relaxation algorithm in [lloyd.c](src/lloyd.c) and [lloyd.h](src/lloyd.h).
 
 ## Visualize
 You can use visualize in an interactive way by launching with the following command:
