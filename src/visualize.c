@@ -180,6 +180,7 @@ void draw_init(DrawCtx *ctx, MyMesh *mesh) {
 
         .selected_vertex = -1,
         .is_dragging = false,
+        .drag_timer = 0.,
 
         .preview_button = {
             .label = CLAY_STRING_CONST("Preview"),
@@ -245,21 +246,23 @@ void draw_handle_user(DrawCtx *ctx) {
     else
         ctx->header_height = (int)Clay_GetElementData(CLAY_ID("Header")).boundingBox.height;
 
-    if (ctx->lloyd_timer > 0.) {
-        ctx->lloyd_timer -= GetFrameTime();
+    if (ctx->drag_timer > 0.) {
+        ctx->drag_timer -= GetFrameTime();
     } 
 
     // Click event to add a new point
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         Vector2 mousePos = GetMousePosition();
         if (mousePos.y >= ctx->header_height) {
-            // 1) Essaie d'attraper un point proche
             int picked = pick_vertex(ctx, mousePos, 8.0); // rayon de 8 px
+
+            // Essaie d'attraper un point proche
             if (picked >= 0) {
                 ctx->selected_vertex = picked;
                 ctx->is_dragging = true;
-            } else {
-                // 2) Pas de point sous la souris -> AJOUTER un nouveau point (comportement actuel)
+            } 
+            // Pas de point sous la souris -> AJOUTER un nouveau point
+            else {
                 double x = mousePos.x, y = mousePos.y;
                 viewportToGeo(ctx, x, y, &x, &y);
 
@@ -270,14 +273,14 @@ void draw_handle_user(DrawCtx *ctx) {
                 added_vertices++;
                 ctx->mesh->vertices[ctx->mesh->num_vertices++] = (Vertex){x, y};
 
-                // Reconstruire la triangulation après ajout (comportement existant)
-                rebuild_triangulation(ctx->mesh);     // déjà utilisé chez toi après ajout
+                // Reconstruire la triangulation après ajout
+                rebuild_triangulation(ctx->mesh);     
                 recompute_bounds(ctx);
                 ctx->update_needed = 1;
             }
         }
     }
-    else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && ctx->is_dragging) {
+    else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && ctx->is_dragging && ctx->drag_timer <= 0.) {
         Vector2 mousePos = GetMousePosition();
         double gx, gy;
         viewportToGeo(ctx, mousePos.x, mousePos.y, &gx, &gy);
@@ -288,11 +291,12 @@ void draw_handle_user(DrawCtx *ctx) {
 
         // (option A) Rebuild à CHAQUE frame pendant le drag
         rebuild_triangulation(ctx->mesh);
-
-        // Si tes bornes min/max servent pour le viewport, mets-les à jour aussi
-        recompute_bounds(ctx);
+        
+        // Avoid bound recompute here since it can cause us to drag a point
+        // into infinity  
 
         ctx->update_needed = 1;
+        ctx->drag_timer = .1; // Limit recompute to every 100ms
     }
     else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && ctx->is_dragging) {
         // Fin du drag -> reconstruire la triangulation une fois
@@ -303,7 +307,7 @@ void draw_handle_user(DrawCtx *ctx) {
         ctx->update_needed = 1;
     }
 
-    // --- PANNING / ZOOM : inchangé ---
+    // --- PANNING / ZOOM ---
     if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
         Vector2 mouseDelta = GetMouseDelta();
         ctx->panning_x += mouseDelta.x;
@@ -314,14 +318,13 @@ void draw_handle_user(DrawCtx *ctx) {
         ctx->zoom += z / 10.;
         ctx->zoom = Clamp(ctx->zoom, 0.5, 5.0);
     }
-
-
     // Recenter (set panning to zero and zoom to 1) with 'C'
     if (IsKeyPressed(KEY_C)) {
         ctx->panning_x = 0;
         ctx->panning_y = 0;
         ctx->zoom = 1.;
     } 
+
     else if (IsKeyPressed(KEY_H)) {
         ctx->header_toggle = !ctx->header_toggle; 
     }
@@ -337,39 +340,21 @@ void draw_handle_user(DrawCtx *ctx) {
     else if (IsKeyPressed(KEY_P)) {
         ctx->preview_button.on = !ctx->preview_button.on;
     }
-    else if (IsKeyDown(KEY_SLASH) && ctx->lloyd_timer <= 0.) { // Equal
-        // Using a lerp to have a smoother evolution
-        for (int vertex_id = 0; vertex_id < ctx->mesh->num_vertices; vertex_id++) {
-            Vertex centroid = compute_voronoi_cell_centroid(ctx->mesh, vertex_id);
-            
-            double lerp_factor = Clamp(100. / (
-                Max(
-                    abs(ctx->mesh->vertices[vertex_id].x - centroid.x),
-                    abs(ctx->mesh->vertices[vertex_id].y - centroid.y)
-                ) + 100.), 0., 1.
-            );
-            lerp_factor *= lerp_factor;
-            ctx->mesh->vertices[vertex_id].x = Lerp(ctx->mesh->vertices[vertex_id].x, centroid.x, lerp_factor);
-            ctx->mesh->vertices[vertex_id].y = Lerp(ctx->mesh->vertices[vertex_id].y, centroid.y, lerp_factor);
-            ctx->update_needed = 1;
+    else if (IsKeyPressed(KEY_SLASH)) { // Equal
+        for (int step = 0; step < 10; step++) {
+            // Using a lerp to have a smoother evolution
+            for (int vertex_id = 0; vertex_id < ctx->mesh->num_vertices; vertex_id++) {
+                Vertex centroid = compute_voronoi_cell_centroid(ctx->mesh, vertex_id);
+                
+                double lerp_factor = 0.3;
+                ctx->mesh->vertices[vertex_id].x = Lerp(ctx->mesh->vertices[vertex_id].x, centroid.x, lerp_factor);
+                ctx->mesh->vertices[vertex_id].y = Lerp(ctx->mesh->vertices[vertex_id].y, centroid.y, lerp_factor);
+                ctx->update_needed = 1;
+            }
         }
 
-        // TODO: Tidy up
         rebuild_triangulation(ctx->mesh);
-        double min_x = __DBL_MAX__, min_y = __DBL_MAX__;
-        double max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
-        for (int i = 0; i < ctx->mesh->num_vertices; i++) {
-            if (ctx->mesh->vertices[i].x < min_x) min_x = ctx->mesh->vertices[i].x;
-            if (ctx->mesh->vertices[i].x > max_x) max_x = ctx->mesh->vertices[i].x;
-            if (ctx->mesh->vertices[i].y < min_y) min_y = ctx->mesh->vertices[i].y;
-            if (ctx->mesh->vertices[i].y > max_y) max_y = ctx->mesh->vertices[i].y;
-        }
-        ctx->min_x = min_x;
-        ctx->min_y = min_y;
-        ctx->max_x = max_x;
-        ctx->max_y = max_y;
-
-        ctx->lloyd_timer = .05; // If too small, crashes the app
+        recompute_bounds(ctx);
     }
 
     // int key;
@@ -383,7 +368,7 @@ void render_shortcuts_grid(DrawCtx *ctx) {
         CLAY_STRING_CONST("Esc - Quit"),
         CLAY_STRING_CONST("C - Recenter"),
         CLAY_STRING_CONST("H - Toggle header"),
-        CLAY_STRING_CONST("+ - One Lloyd step"),
+        CLAY_STRING_CONST("+ - 10 Lloyd steps"),
         // New shortcuts go here...
     };
 
@@ -636,7 +621,7 @@ int main(int argc, char* argv[]) {
         }
 
         // --- PREVIEW INSERT: FRONTIÈRE UNIQUEMENT ---------------------------------
-        if (ctx.preview_button.on && !ctx.is_dragging && !IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        if (ctx.delaunay_button.on && ctx.preview_button.on && !ctx.is_dragging && !IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             Vector2 mp = GetMousePosition();
             if (mp.y >= ctx.header_height) {
 

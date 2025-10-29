@@ -23,7 +23,6 @@ typedef struct DrawCtx {
 
     int panning_x, panning_y;
     float zoom;
-    float lloyd_timer;
 
     Button voronoi_button;
     Button delaunay_button;
@@ -34,7 +33,8 @@ typedef struct DrawCtx {
     uint8_t spooky_mode;
 
     int  selected_vertex;   // -1 si aucun
-    bool is_dragging;
+    uint8_t is_dragging;
+    float drag_timer;
 } DrawCtx;
 
 void draw_init(DrawCtx *ctx, MyMesh *mesh);
