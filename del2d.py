@@ -125,4 +125,5 @@ if __name__ == '__main__':
     time = time_end - time_start
     print(f"Time to compute triangulation: {time} seconds")
 
-    PlotTriangles(args,plot_circumcircles=False)
+    # Visualize the result in Python
+    # PlotTriangles(args,plot_circumcircles=False)
