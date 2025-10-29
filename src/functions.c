@@ -255,10 +255,11 @@ int getBadFace(MyMesh* mesh, List* bad_faces, Vertex p, int *actual_face) {
             double ax = mesh->vertices[a->vertex].x, ay = mesh->vertices[a->vertex].y;
             double bx = mesh->vertices[b->vertex].x, by = mesh->vertices[b->vertex].y;
             double cx = mesh->vertices[c->vertex].x, cy = mesh->vertices[c->vertex].y;
-
-            double cross1 = (bx - ax) * (p.y - ay) - (by - ay) * (p.x - ax);
-            double cross2 = (cx - bx) * (p.y - by) - (cy - by) * (p.x - bx);
-            double cross3 = (ax - cx) * (p.y - cy) - (ay - cy) * (p.x - cx);
+            
+            // Use orient2d instead of cross product for robustness
+            double cross1 = orient2d(& (double[]){ax, ay}, & (double[]){bx, by}, & (double[]){p.x, p.y});
+            double cross2 = orient2d(& (double[]){bx, by}, & (double[]){cx, cy}, & (double[]){p.x, p.y});
+            double cross3 = orient2d(& (double[]){cx, cy}, & (double[]){ax, ay}, & (double[]){p.x, p.y});
 
             int next_face = -1;
             if (cross1 < 0) {
@@ -1026,7 +1027,7 @@ void insertPoint(
         }
     }
 
-    // 4. Re-triangulate the polygonal hole with new faces connecting to point p -> TODO
+    // 4. Re-triangulate the polygonal hole with new faces connecting to point p
     // Another way to do this by walking around p and making twins as we go
     // Use removed_halfedges_1 and removed_halfedge_count_1 for this step
 
