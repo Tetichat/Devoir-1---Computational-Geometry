@@ -4,6 +4,7 @@
 - **Abel:** Implementation of the visualize application in [visualize.c](src/visualize.c) and [visualize.h](src/visualize.h) as well as the Lloyd's relaxation algorithm in [lloyd.c](src/lloyd.c) and [lloyd.h](src/lloyd.h).
 - **Nicolas:** Implementation of the Bowyer-Watson algorithm and associated Hilbert sorting and "triangle walking" in [mycode.c](src/mycode.c),
 [functions.c](src/functions.c) and [functions.h](src/functions.h). 
+- **Diego:** Implementation of the infinite point removal function and hull filling function to make it convex in [functions.c](src/functions.c) and [functions.h](src/functions.h).
 
 ## Visualize
 You can use visualize in an interactive way by launching with the following command:
