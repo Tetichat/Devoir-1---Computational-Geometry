@@ -4,7 +4,6 @@ import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-import HalfEdge as he
 import time
 
 def PlotTriangles(args,plot_circumcircles=False):
