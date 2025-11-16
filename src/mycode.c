@@ -47,8 +47,9 @@ int Cdelaunay(char* input_file, char* output_file, void *myMesh) {
     }
     
     // Step 2: Insert points into the triangulation
+    int walking_face = 0;
     for (int i = 0; i < mesh->num_vertices; i++) {
-        insertPoint(mesh, hilbert_indices, &bad_faces, &boundary_edges, &removed_halfedges_1, &removed_halfedges_2, &new_halfedges, i);
+        insertPoint(mesh, hilbert_indices, &bad_faces, &boundary_edges, &removed_halfedges_1, &removed_halfedges_2, &new_halfedges, i, &walking_face);
     }
 
     int* first_hes = (int*)malloc(4 * sizeof(int));

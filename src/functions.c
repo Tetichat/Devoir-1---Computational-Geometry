@@ -972,10 +972,10 @@ void insertPoint(
     List *removed_halfedges_1, 
     List *removed_halfedges_2, 
     List *new_halfedges, 
-    int vertex_idx
+    int vertex_idx,
+    int* walking_face
 ) {
     Vertex p = mesh->vertices[hilbert_indices[vertex_idx].index];
-    int walking_face = 0;
         
     // Reset temporary storage
     emptyList(bad_faces);
@@ -985,13 +985,13 @@ void insertPoint(
 
     // 1. Find all triangles whose circumcircle contains the point p
     // Start from the last walking face and get one bad face
-    if(getBadFace(mesh, bad_faces, p, &walking_face) != 0) {
+    if(getBadFace(mesh, bad_faces, p, walking_face) != 0) {
         // Point is outside the triangulation, skip it
         return;
     }
 
     // If found, get neighbors of bad faces and to bad_faces list if point is inside circumcircle
-    getNeighbours(mesh, bad_faces, p, walking_face);
+    getNeighbours(mesh, bad_faces, p, *walking_face);
 
     // 2. Find the boundary of the polygonal hole
     for (int j = 0; j < bad_faces->count; j++) {

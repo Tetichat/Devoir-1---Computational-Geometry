@@ -94,7 +94,8 @@ void insertPoint(
     List *removed_halfedges_1, 
     List *removed_halfedges_2, 
     List *new_halfedges, 
-    int vertex_idx
+    int vertex_idx,
+    int* walking_face
 );
 
 int* cleanupMesh(MyMesh* mesh, int* inf_bound, int len_bound);
