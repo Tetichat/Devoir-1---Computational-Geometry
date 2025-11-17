@@ -99,9 +99,10 @@ void rebuild_triangulation(MyMesh *mesh) {
         free(hilbert_indices[i].bits);
     }
 
+    int walking_face = 0;
     for (int i = 0; i < mesh->num_vertices; i++) {
         insertPoint(mesh, hilbert_indices, &bad_faces, &boundary_edges, 
-                   &removed_halfedges_1, &removed_halfedges_2, &new_halfedges, i);
+                   &removed_halfedges_1, &removed_halfedges_2, &new_halfedges, i, &walking_face);
         
         emptyList(&bad_faces);
         emptyList(&boundary_edges);
